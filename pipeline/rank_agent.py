@@ -33,7 +33,14 @@ WORKDAYS = 20.0
 # 0.1 min of loop inside a 0.4 min span scales to "40 hours a month", which is
 # true to the formula and absurd to a judge. Below this many minutes observed
 # we still show the measured number and mark the projection unreliable.
-MIN_SPAN_MIN = 5.0
+#
+# This floor was 5.0 and 5.0 was too low. A 5.5 min recording cleared it by
+# thirty seconds and produced "32 hours a month" from 1.1 min of loop, which
+# is the exact claim the floor exists to prevent: it assumes six minutes of
+# someone doing one task on purpose is a representative working day. Ten
+# minutes is still not a lot. It is enough that the clip has to contain
+# something other than the task you sat down to record.
+MIN_SPAN_MIN = 10.0
 
 MIN_MEDIAN_SECONDS = 2.0    # a loop with no measurable duration is a blip
 MIN_OBSERVED_MINUTES = 0.25 # under 15s measured, there is nothing to stand on
