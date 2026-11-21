@@ -13,9 +13,10 @@ from .office_recipes import RECIPES
 
 WORKFLOW_NAME = 'ai-discovery-meeting-replies-v1'
 CHECK_INTERVAL_SECONDS = 30
-LABEL = 'com.mistralhackathon.aidiscovery.workflows'
+LABEL = os.environ.get('CHONKYTASKS_WORKER_LABEL', 'com.mistralhackathon.aidiscovery.workflows')
 PYTHON = storage.ROOT / '.workflows-venv/bin/python'
 LAUNCH_AGENT = Path.home() / f'Library/LaunchAgents/{LABEL}.plist'
+LOG_DIR = Path(os.environ.get('CHONKYTASKS_LOG_DIR', str(Path.home() / 'Library/Logs/AI Discovery')))
 LOCK = asyncio.Lock()
 REMOTE_CACHE = None
 
@@ -106,7 +107,7 @@ async def settings():
 async def start_worker():
     if not PYTHON.is_file() or not mac.HELPER.is_file():
         raise ValueError('The background service is missing. Rebuild chonkytasks with its Workflows runtime.')
-    log = Path.home() / 'Library/Logs/AI Discovery/workflows.log'
+    log = LOG_DIR / 'workflows.log'
     log.parent.mkdir(parents=True, exist_ok=True)
     LAUNCH_AGENT.parent.mkdir(parents=True, exist_ok=True)
     payload = {'Label': LABEL, 'ProgramArguments': [str(PYTHON), '-m', 'workflows.worker'],
@@ -114,7 +115,10 @@ async def start_worker():
         # launchd's Background tier throttles Python enough to exceed Temporal's
         # workflow-task deadlines. Standard still runs without a window but keeps
         # normal CPU/IO scheduling for the worker and its heartbeats.
-        'ProcessType': 'Standard', 'EnvironmentVariables': {'DEPLOYMENT_NAME': deployment_name(), 'PYTHONUNBUFFERED': '1', 'CHONKYTASKS_WORKER_REVISION': '2'},
+        'ProcessType': 'Standard', 'EnvironmentVariables': {
+            'DEPLOYMENT_NAME': deployment_name(), 'PYTHONUNBUFFERED': '1', 'CHONKYTASKS_WORKER_REVISION': '2',
+            'CHONKYTASKS_AUTOMATION_HELPER': str(mac.HELPER),
+        },
         'StandardOutPath': str(log), 'StandardErrorPath': str(log)}
     domain = f'gui/{os.getuid()}'
     if LAUNCH_AGENT.exists() and plistlib.loads(LAUNCH_AGENT.read_bytes()) == payload:

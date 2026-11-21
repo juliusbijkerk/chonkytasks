@@ -28,6 +28,14 @@ func htmlString(_ value: String) -> String {
 }
 
 enum AppPaths {
+    private static let legacyBundleIdentifier = "com.mistralhackathon.aidiscovery"
+    static let variantIdentifier = Bundle.main.bundleIdentifier.flatMap {
+        $0 == legacyBundleIdentifier ? nil : $0
+    }
+    static let logsDirectory = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Logs", isDirectory: true)
+        .appendingPathComponent(variantIdentifier ?? "AI Discovery", isDirectory: true)
+
     /// Locate the directory that contains app/main.py (the backend root).
     /// Order: CHONKYTASKS_HOME env (with legacy overrides), build path,
     /// then the repo layout when the .app sits in <repo>/dist/.
@@ -67,8 +75,7 @@ final class ServerProcess {
     var onUnexpectedExit: (() -> Void)?
     private var stopping = false
 
-    static let logURL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Logs/AI Discovery/server.log")
+    static let logURL = AppPaths.logsDirectory.appendingPathComponent("server.log")
 
     init?(root: URL) {
         guard let port = ServerProcess.freePort() else { return nil }
@@ -109,9 +116,19 @@ final class ServerProcess {
         process.currentDirectoryURL = root
         var environment = ProcessInfo.processInfo.environment
         environment["PYTHONUNBUFFERED"] = "1"
-        // Finder does not read shell profiles. Include both Homebrew locations
-        // so video tools can be found when opening the app from Finder or the Dock.
-        environment["PATH"] = ([root.appendingPathComponent(".venv/bin").path,
+        let helpers = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers", isDirectory: true)
+        let automations = Bundle.main.bundleURL.appendingPathComponent(
+            "Contents/Library/LoginItems/chonkytasks Automations.app/Contents/MacOS/AutomationHelper")
+        environment["CHONKYTASKS_AUTOMATION_HELPER"] = automations.path
+        environment["CHONKYTASKS_REDACTOR"] = helpers.appendingPathComponent("RedactEvidence").path
+        environment["CHONKYTASKS_EVIDENCE_HELPER"] = helpers.appendingPathComponent("FindWorkflowEvidence").path
+        if let identifier = AppPaths.variantIdentifier {
+            environment["CHONKYTASKS_WORKER_LABEL"] = identifier + ".workflows"
+            environment["CHONKYTASKS_LOG_DIR"] = AppPaths.logsDirectory.path
+        }
+        // Finder does not read shell profiles. Prefer the video tools in this app,
+        // then look in the project's environment and standard Homebrew locations.
+        environment["PATH"] = ([helpers.path, root.appendingPathComponent(".venv/bin").path,
                                 "/opt/homebrew/bin", "/usr/local/bin",
                                 environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"]).joined(separator: ":")
         process.environment = environment
@@ -251,11 +268,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             guard let self else { return }
             if ok {
                 server.onUnexpectedExit = { [weak self] in
-                    self?.presentFatalError("The local server stopped. Reopen chonkytasks to try again.\nDetails: ~/Library/Logs/AI Discovery/server.log")
+                    self?.presentFatalError("The local server stopped. Reopen chonkytasks to try again.\nDetails: \(ServerProcess.logURL.path)")
                 }
                 self.webView.load(URLRequest(url: server.baseURL))
             } else {
-                self.presentFatalError("The local server could not start.\nDetails: ~/Library/Logs/AI Discovery/server.log\nTo repair the project environment, run .venv/bin/python -m pip install -r requirements.lock.txt from the project folder, then reopen the app.")
+                self.presentFatalError("The local server could not start.\nDetails: \(ServerProcess.logURL.path)")
             }
         }
     }

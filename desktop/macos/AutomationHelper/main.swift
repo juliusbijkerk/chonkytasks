@@ -7,8 +7,12 @@ import Security
 
 struct BridgeError: Error { let code: String }
 let store = EKEventStore()
+let legacyHelperIdentifier = "com.mistralhackathon.aidiscovery.automations"
+let keychainService = Bundle.main.bundleIdentifier
+    .flatMap { $0 == legacyHelperIdentifier ? nil : $0 + ".workflows" }
+    ?? "com.mistralhackathon.aidiscovery.workflows"
 let keyQuery: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
-    kSecAttrService as String: "com.mistralhackathon.aidiscovery.workflows", kSecAttrAccount as String: "mistral"]
+    kSecAttrService as String: keychainService, kSecAttrAccount as String: "mistral"]
 func hasCalendar() -> Bool { EKEventStore.authorizationStatus(for: .event).rawValue == 3 }
 func calendarStatus() -> String {
     switch EKEventStore.authorizationStatus(for: .event).rawValue {

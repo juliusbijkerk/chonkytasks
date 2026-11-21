@@ -5,6 +5,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$HOME/Applications/chonkytasks.app"
 DIST_APP="$ROOT/dist/chonkytasks.app"
+RELEASE_DIR="${CHONKYTASKS_RELEASE_DIR:-}"
+FFMPEG_DIR="${CHONKYTASKS_FFMPEG_DIR:-}"
+if [[ -n "$RELEASE_DIR" ]]; then
+  APP="$RELEASE_DIR/ChonkyTasks.app"
+  if [[ -e "$APP" || -L "$APP" ]]; then
+    echo "Choose an empty release destination or move the existing ChonkyTasks.app first." >&2
+    exit 1
+  fi
+  if [[ -z "$FFMPEG_DIR" || ! -x "$FFMPEG_DIR/ffmpeg" || ! -x "$FFMPEG_DIR/ffprobe" ]]; then
+    echo "Set CHONKYTASKS_FFMPEG_DIR to a directory with both ffmpeg and ffprobe." >&2
+    exit 1
+  fi
+fi
 SRC="$ROOT/macos/AIDiscovery"
 PYTHON="$ROOT/.venv/bin/python"
 
@@ -23,7 +36,7 @@ SIGNING_IDENTITY="${CHONKYTASKS_SIGNING_IDENTITY:-}"
 if [[ -z "$SIGNING_IDENTITY" ]]; then
   SIGNING_IDENTITY="$("$PYTHON" "$ROOT/macos/signing_identity.py")"
 fi
-if [[ "$SIGNING_IDENTITY" == '-' ]]; then
+if [[ "$SIGNING_IDENTITY" == '-' && -z "$RELEASE_DIR" ]]; then
   echo 'Ad-hoc signing cannot preserve macOS permissions. Use a persistent signing certificate.' >&2
   exit 1
 fi
@@ -43,6 +56,10 @@ swiftc -O -swift-version 5 -sdk "$SDK" -target "$(uname -m)-apple-macosx13.0" \
 
 echo "==> Assembling bundle"
 cp -X "$ROOT/macos/Info.plist" "$BUNDLE/Contents/Info.plist"
+if [[ -n "$RELEASE_DIR" ]]; then
+  /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.mistralhackathon.chonkytasks.release' "$BUNDLE/Contents/Info.plist"
+  /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName ChonkyTasks' "$BUNDLE/Contents/Info.plist"
+fi
 printf 'APPL????' > "$BUNDLE/Contents/PkgInfo"
 printf '%s\n' "$ROOT" > "$BUNDLE/Contents/Resources/backend-root.txt"
 
@@ -53,6 +70,9 @@ swiftc -O -swift-version 5 -sdk "$SDK" -target "$(uname -m)-apple-macosx13.0" \
   -framework AppKit -framework Carbon -framework EventKit -framework Security \
   "$ROOT/macos/AutomationHelper/main.swift" -o "$HELPER/Contents/MacOS/AutomationHelper"
 cp -X "$ROOT/macos/AutomationHelper/Info.plist" "$HELPER/Contents/Info.plist"
+if [[ -n "$RELEASE_DIR" ]]; then
+  /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.mistralhackathon.chonkytasks.release.automations' "$HELPER/Contents/Info.plist"
+fi
 osacompile -o "$HELPER/Contents/Resources/Mail.scpt" "$ROOT/macos/AutomationHelper/Mail.applescript"
 codesign --force --timestamp=none --sign "$SIGNING_IDENTITY" "$HELPER"
 
@@ -65,6 +85,14 @@ swiftc -O -swift-version 5 -sdk "$SDK" -target "$(uname -m)-apple-macosx13.0" \
   "$ROOT/macos/WorkflowEvidence/"*.swift -o "$BUNDLE/Contents/Helpers/FindWorkflowEvidence"
 codesign --force --timestamp=none --sign "$SIGNING_IDENTITY" "$BUNDLE/Contents/Helpers/FindWorkflowEvidence"
 
+if [[ -n "$FFMPEG_DIR" ]]; then
+  echo "==> Bundling FFmpeg"
+  for tool in ffmpeg ffprobe; do
+    cp -X "$FFMPEG_DIR/$tool" "$BUNDLE/Contents/Helpers/$tool"
+    codesign --force --timestamp=none --sign "$SIGNING_IDENTITY" "$BUNDLE/Contents/Helpers/$tool"
+  done
+fi
+
 echo "==> Building icon"
 "$PYTHON" "$ROOT/macos/make_icon.py" "$STAGING/chonkytasks.iconset"
 iconutil -c icns "$STAGING/chonkytasks.iconset" -o "$BUNDLE/Contents/Resources/chonkytasks.icns"
@@ -74,16 +102,18 @@ codesign --force --timestamp=none --sign "$SIGNING_IDENTITY" "$BUNDLE"
 codesign --verify --deep --strict "$BUNDLE"
 plutil -lint "$BUNDLE/Contents/Info.plist"
 
-# Do not discard the last build until compilation and signing have succeeded.
-mkdir -p "$HOME/Applications" "$ROOT/dist"
-rm -rf "$APP"
-ditto --norsrc --noextattr "$BUNDLE" "$APP"
+# Keep release builds and the installed development app independent.
+if [[ -n "$RELEASE_DIR" ]]; then
+  mkdir -p "$RELEASE_DIR"
+  ditto --norsrc --noextattr "$BUNDLE" "$APP"
+else
+  mkdir -p "$HOME/Applications" "$ROOT/dist"
+  rm -rf "$APP"
+  ditto --norsrc --noextattr "$BUNDLE" "$APP"
+  rm -rf "$DIST_APP"
+  ln -s "$APP" "$DIST_APP"
+fi
 codesign --verify --deep --strict "$APP"
-
-# A synced Documents folder can add Finder metadata again immediately after a
-# successful build. Keep the signed bundle in Applications and link to it here.
-rm -rf "$DIST_APP"
-ln -s "$APP" "$DIST_APP"
 
 echo "==> Built $APP"
 echo "    Run it with: open \"$APP\""
