@@ -64,10 +64,62 @@ func key(_ operation: String, _ input: [String: Any]) throws -> [String: Any] {
     if operation == "key_status" { return ["configured": true] }
     return ["value": String(data: result as? Data ?? Data(), encoding: .utf8) ?? ""]
 }
+
+func meetingCalendar(_ operation: String, _ input: [String: Any]) throws -> [String: Any] {
+    guard hasCalendar() else { throw BridgeError(code: "calendar_permission") }
+    let calendars = store.calendars(for: .event).filter(\.allowsContentModifications)
+    if operation == "calendar_targets" {
+        return ["default_id": store.defaultCalendarForNewEvents?.calendarIdentifier ?? "",
+                "calendars": calendars.map { ["id": $0.calendarIdentifier, "title": $0.title] }]
+    }
+    guard let calendarID = input["calendar_id"] as? String,
+          let calendar = calendars.first(where: { $0.calendarIdentifier == calendarID }) else {
+        throw BridgeError(code: "invalid_calendar")
+    }
+    guard let start = input["start"] as? Double, let end = input["end"] as? Double,
+          start.isFinite, end.isFinite, end > start, end - start <= 4 * 3600,
+          let zone = input["timezone"] as? String, let timeZone = TimeZone(identifier: zone),
+          let title = input["title"] as? String, title == "Meeting",
+          let token = input["token"] as? String, token.range(of: #"^[a-f0-9]{64}$"#, options: .regularExpression) != nil,
+          let marker = URL(string: "chonkytasks://approved-meeting/" + token) else {
+        throw BridgeError(code: "invalid_event")
+    }
+    let begins = Date(timeIntervalSince1970: start), finishes = Date(timeIntervalSince1970: end)
+    let events = store.events(matching: store.predicateForEvents(withStart: begins, end: finishes, calendars: nil))
+    if let existing = events.first(where: { $0.url == marker }) {
+        guard existing.calendar.calendarIdentifier == calendarID, existing.title == title,
+              existing.startDate == begins, existing.endDate == finishes else { throw BridgeError(code: "invalid_event") }
+        return ["available": true, "event_id": existing.eventIdentifier ?? ""]
+    }
+    if operation == "find_event" { return [:] }
+    guard begins > Date() else { throw BridgeError(code: "invalid_event") }
+    let available = !events.contains { event in
+        event.status != .canceled && event.availability != .free && event.startDate < finishes && begins < event.endDate
+    }
+    if operation == "check_event" { return ["available": available] }
+    guard available else { throw BridgeError(code: "calendar_conflict") }
+
+    let event = EKEvent(eventStore: store)
+    event.title = title
+    event.calendar = calendar
+    event.startDate = begins
+    event.endDate = finishes
+    event.timeZone = timeZone
+    event.url = marker
+    do { try store.save(event, span: .thisEvent, commit: true) }
+    catch { throw BridgeError(code: "event_unconfirmed") }
+    guard let identifier = event.eventIdentifier, let saved = store.event(withIdentifier: identifier),
+          saved.url == marker, saved.startDate == begins, saved.endDate == finishes,
+          saved.calendar.calendarIdentifier == calendarID else { throw BridgeError(code: "event_unconfirmed") }
+    return ["available": true, "event_id": identifier]
+}
 func run(_ input: [String: Any]) throws -> [String: Any] {
     let operation = input["operation"] as? String ?? "status"
     if ["save_key", "get_key", "key_status"].contains(operation) { return try key(operation, input) }
     if operation == "status" { return permissions() }
+    if ["calendar_targets", "check_event", "create_event", "find_event"].contains(operation) {
+        return try meetingCalendar(operation, input)
+    }
     if operation == "permissions" {
         let service = input["service"] as? String ?? "both"
         guard ["both", "mail", "calendar"].contains(service) else { throw BridgeError(code: "invalid_input") }

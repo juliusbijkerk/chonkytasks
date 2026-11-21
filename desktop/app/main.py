@@ -22,7 +22,7 @@ load_dotenv(ROOT / ".env")
 
 from .analyze import analyze, get_model
 from .video import extract_frames, make_preview, probe
-from . import automations, automation_store, mac_automation, draft_review
+from . import automations, automation_store, mac_automation, draft_review, privacy_review, workflow_evidence
 
 DATA = ROOT / "data" / "jobs"
 DATA.mkdir(parents=True, exist_ok=True)
@@ -96,13 +96,16 @@ async def local_requests(request: Request, call_next):
     return response
 
 
-def ensure_ready():
+def ensure_provider():
     if not os.getenv("OPENROUTER_API_KEY", "").strip():
         raise HTTPException(503, "Add OPENROUTER_API_KEY to .env and restart the app.")
     try:
         get_model()
     except ValueError as error:
         raise HTTPException(503, str(error))
+
+
+def ensure_ready():
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
         raise HTTPException(503, "Install FFmpeg and ffprobe to analyze recordings.")
     if sum(j["status"] in ("queued", "processing") for j in JOBS.values()) >= 4:
@@ -118,23 +121,30 @@ def get_job(job_id):
 def new_job(name, context):
     return {"id": uuid.uuid4().hex, "filename": name, "display_name": name, "notes": "", "context": context[:2000],
             "created_at": datetime.now(timezone.utc).isoformat(), "status": "queued", "stage": "queued",
-            "progress": 0, "message": "Recording queued", "model": get_model()}
+            "progress": 0, "message": "Recording queued"}
 
 
-def launch(job):
+def launch(job, *, for_analysis=False):
     persist(job)
-    task = asyncio.create_task(process(job))
+    task = asyncio.create_task(process(job, for_analysis=for_analysis))
     TASKS.add(task)
     task.add_done_callback(TASKS.discard)
 
 
-async def process(job):
+async def process(job, *, for_analysis=False):
     folder = DATA / job["id"]
     def update(**values):
         job.update(values)
         persist(job)
     async with SLOTS:
         try:
+            if for_analysis:
+                update(status="processing", stage="observing", progress=25, message="Analyzing reviewed evidence",
+                       started_at=datetime.now(timezone.utc).isoformat(), model_request=None, analysis_progress=None)
+                report = await analyze(folder, job, update)
+                update(report=workflow_evidence.attach(report, job), status="completed", stage="completed",
+                       progress=100, message="Done", local_only=False)
+                return
             update(status="processing", stage="preparing", progress=5, message="Preparing the video",
                    started_at=datetime.now(timezone.utc).isoformat(), model_request=None,
                    analysis_progress=None)
@@ -145,10 +155,22 @@ async def process(job):
             update(video_url=f"/api/jobs/{job['id']}/video", stage="extracting", progress=15,
                    message="Choosing screenshots")
             frames, interval = await asyncio.to_thread(extract_frames, source, folder, metadata)
-            update(frames=frames, sample_interval=interval, progress=25,
-                   message=f"Selected {len(frames)} screenshots")
-            report = await analyze(folder, job, update)
-            update(report=report, status="completed", stage="completed", progress=100, message="Done")
+            update(frames=frames, sample_interval=interval, progress=21, stage="extracting",
+                   message="Checking for repeatable work on this Mac")
+            try:
+                findings = await asyncio.to_thread(workflow_evidence.scan, source, folder / "preview.mp4", metadata['duration'])
+                update(local_findings=findings, local_evidence_status="checked")
+            except ValueError:
+                update(local_findings=[], local_evidence_status="unavailable")
+            update(progress=23, message="Redacting screenshots on this Mac")
+            try:
+                await asyncio.to_thread(privacy_review.prepare, folder, frames)
+            except ValueError as error:
+                # A missing redactor does not block local findings or authorize a cloud request.
+                update(redaction_ready=False, redaction_message=str(error))
+            else:
+                update(redaction_ready=True, redaction_message="")
+            update(status="review", stage="review", progress=25, message="Review recording evidence")
         except asyncio.CancelledError:
             update(status="failed", stage="failed", message="Analysis stopped when the server shut down. Retry this recording.")
             raise
@@ -228,6 +250,13 @@ async def clear_activity():
 class DraftSend(BaseModel):
     revision: str = Field(pattern=r'^[0-9a-f]{64}$')
     confirmed: Literal[True]
+    calendar_id: str | None = Field(default=None, max_length=512)
+    event_revision: str | None = Field(default=None, pattern=r'^[0-9a-f]{64}$')
+
+
+class CalendarApproval(BaseModel):
+    event_revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+    confirmed: Literal[True]
 
 
 @app.get('/api/drafts/{draft_id}')
@@ -241,7 +270,15 @@ async def preview_draft(draft_id: str):
 @app.post('/api/drafts/{draft_id}/send')
 async def send_draft(draft_id: str, request: DraftSend):
     try:
-        return await draft_review.send(draft_id, request.revision)
+        return await draft_review.send(draft_id, request.revision, request.calendar_id, request.event_revision)
+    except draft_review.ReviewError as error:
+        raise HTTPException(error.status, str(error)) from None
+
+
+@app.post('/api/drafts/{draft_id}/calendar')
+async def complete_calendar_event(draft_id: str, request: CalendarApproval):
+    try:
+        return await draft_review.finish_calendar(draft_id, request.event_revision)
     except draft_review.ReviewError as error:
         raise HTTPException(error.status, str(error)) from None
 
@@ -410,6 +447,58 @@ async def job_status(job_id: str):
     return get_job(job_id)
 
 
+class EvidenceSelection(BaseModel):
+    frame_ids: list[str] = Field(min_length=1, max_length=72)
+    context: str = Field(default='', max_length=2000)
+
+
+class EvidenceApproval(EvidenceSelection):
+    revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+    confirmed: Literal[True]
+
+
+def check_evidence_selection(job: dict, selection: EvidenceSelection):
+    reviewable = job['status'] == 'review' or (job['status'] == 'completed' and job.get('local_only'))
+    if not reviewable or not job.get('redaction_ready'):
+        raise HTTPException(409, 'Prepare the local privacy review first.')
+    try:
+        return privacy_review.review(DATA / job['id'], job['frames'], selection.frame_ids, selection.context, get_model())
+    except (ValueError, OSError) as error:
+        message = str(error) if isinstance(error, ValueError) else 'A redacted screenshot is unavailable.'
+        raise HTTPException(422, message) from None
+
+
+@app.post('/api/jobs/{job_id}/privacy/preview')
+async def preview_evidence(job_id: str, selection: EvidenceSelection, exact: bool = False):
+    packet = check_evidence_selection(get_job(job_id), selection)
+    return packet.manifest() if exact else packet.selection()
+
+
+@app.post('/api/jobs/{job_id}/privacy/approve', status_code=202)
+async def approve_evidence(job_id: str, approval: EvidenceApproval):
+    job = get_job(job_id)
+    packet = check_evidence_selection(job, approval)
+    if packet.revision != approval.revision:
+        raise HTTPException(409, 'The evidence changed. Review the current selection again.')
+    ensure_provider()
+    ensure_ready()
+    job.update(privacy_approval=packet.selection(), status='queued', stage='queued', progress=25,
+               message='Reviewed evidence queued for analysis')
+    launch(job, for_analysis=True)
+    return job
+
+
+@app.post('/api/jobs/{job_id}/privacy/local')
+async def finish_locally(job_id: str):
+    job = get_job(job_id)
+    if job['status'] != 'review':
+        raise HTTPException(409, 'Wait for the local checks to finish.')
+    job.update(status='completed', stage='completed', progress=100, message='Local findings ready',
+               report=workflow_evidence.local_report(job), local_only=True)
+    persist(job)
+    return job
+
+
 @app.get("/api/jobs/{job_id}/events")
 async def job_events(job_id: str):
     get_job(job_id)
@@ -426,7 +515,7 @@ async def job_events(job_id: str):
                     yield ": keep-alive\n\n"
                     continue
                 yield f"data: {payload}\n\n"
-                if json.loads(payload)["status"] in ("completed", "failed"):
+                if json.loads(payload)["status"] in ("completed", "failed", "review"):
                     break
         finally:
             subscribers.discard(queue)
@@ -478,8 +567,20 @@ async def delete_job(job_id: str):
 async def retry(job_id: str):
     ensure_ready()
     job = get_job(job_id)
-    if job["status"] != "failed":
-        raise HTTPException(409, "Only failed analyses can be retried.")
+    if job["status"] != "failed" and not (job["status"] == "review" and not job.get('redaction_ready')):
+        raise HTTPException(409, "This recording is not waiting for a retry.")
+    if job.get("privacy_approval"):
+        ensure_provider()
+        try:
+            privacy_review.stored(DATA / job_id, job, get_model())
+        except ValueError:
+            job.update(status='review', stage='review', progress=25,
+                       message='Review the recording again before sending', privacy_approval=None)
+            persist(job)
+            return job
+        job.update(status='queued', stage='queued', progress=25, message='Reviewed evidence queued for retry')
+        launch(job, for_analysis=True)
+        return job
     job.update(status="queued", stage="queued", progress=0, message="Recording queued for retry",
                started_at=None, analysis_progress=None, model_request=None)
     launch(job)
@@ -503,6 +604,18 @@ async def frame(job_id: str, filename: str):
     return FileResponse(DATA / job_id / "frames" / filename, media_type="image/jpeg")
 
 
+@app.get('/api/jobs/{job_id}/redacted/{filename}')
+async def redacted_frame(job_id: str, filename: str):
+    job = get_job(job_id)
+    if not job.get('redaction_ready') or filename not in {f"{frame['id']}.jpg" for frame in job.get('frames', [])}:
+        raise HTTPException(404, 'Redacted screenshot not found.')
+    try:
+        jpeg = privacy_review.read_image(DATA / job_id / 'redacted', filename.removesuffix('.jpg'))
+    except (ValueError, OSError):
+        raise HTTPException(404, 'Redacted screenshot not found.') from None
+    return Response(jpeg, media_type='image/jpeg')
+
+
 def markdown_report(job):
     r = job["report"]
     lines = [f"# {r['title']}", "", r["summary"], "", f"Recording: {job.get('display_name', job['filename'])}",
@@ -515,6 +628,11 @@ def markdown_report(job):
     lines += ["", f"Observed workflow instances: {r['workflow']['observed_occurrence_count']}"]
     for occurrence in r["workflow"]["occurrences"]:
         lines += [f"- {occurrence['start_seconds']:.1f}–{occurrence['end_seconds']:.1f}s ({occurrence['observed_span_seconds']:.1f}s elapsed screen span): {occurrence['description']}"]
+    if r.get('local_findings'):
+        lines += ['', '## Matched on this Mac']
+        for finding in r['local_findings']:
+            lines += ['', f"### {finding['title']}"]
+            lines += [f"- {pair['source']:.1f}s → {pair['result']:.1f}s" for pair in finding['examples']]
     for rec in r["recommendations"]:
         lines += ["", f"## {rec['title']}", rec["summary"], "", "### Proposed automation"]
         lines += [f"- {s}" for s in rec["automated_steps"]]

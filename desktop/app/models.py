@@ -12,6 +12,7 @@ class Step(BaseModel):
     evidence_type: Literal["observed", "inferred"]
     confidence: Literal["high", "medium", "low"]
     uncertainty: str
+    evidence_role: Literal["source", "result", "other"] = "other"
 
 
 class Observations(BaseModel):
@@ -43,12 +44,18 @@ class Savings(BaseModel):
     assumptions: list[str]
 
 
+class EvidencePair(BaseModel):
+    source_frame_id: str
+    result_frame_id: str
+
+
 class Recommendation(BaseModel):
     automation_recipe: Literal["meeting_reply_drafts", "unavailable"] = "unavailable"
     title: str
     summary: str
     confidence: Literal["high", "medium", "low"]
     evidence_frame_ids: list[str] = Field(min_length=1)
+    evidence_pairs: list[EvidencePair] = Field(default_factory=list, max_length=8)
     automated_steps: list[str] = Field(min_length=1)
     human_steps: list[str]
     integrations: list[Integration]

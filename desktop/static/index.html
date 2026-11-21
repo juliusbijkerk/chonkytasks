@@ -63,7 +63,7 @@
       </div>
       <div class="context-row">
         <input type="text" id="context" maxlength="2000" placeholder="What were you working on? (optional)" aria-label="What were you working on? (optional)" autocomplete="off">
-        <button class="primary" id="analyze-button" disabled>Analyze</button>
+        <button class="primary" id="analyze-button" disabled>Prepare recording</button>
       </div>
       <p class="hint">Start with a recording of a task you repeat.</p>
       <div class="samples" id="samples"></div>
@@ -91,6 +91,7 @@
       </div>
     </section>
 
+    <section id="privacy-view" hidden></section>
     <section id="report-view" hidden></section>
     <section id="automations-view" hidden>
       <div class="page-heading"><h1>Automations</h1><p>Background tasks on this Mac.</p></div>
@@ -142,7 +143,7 @@
       <div class="connection-row calendar-connection"><div><strong>Calendar</strong><small id="calendar-connection-state">Not connected</small></div><button class="secondary" id="connect-calendar" aria-label="Allow Calendar access">Allow access</button></div>
       <div class="permission-help" id="permission-help" hidden><p>Enable calendar access for chonkytasks in Calendars settings. Mail access is under Automation.</p><div><button class="link" data-privacy-pane="Calendars">Calendar settings ↗</button><button class="link" data-privacy-pane="Automation">Mail permissions ↗</button></div></div>
     </section>
-    <p class="connection-footnote">Mistral reads new message text to identify meeting requests. Checks run every 30 seconds while this Mac is awake and online, even after you close chonkytasks.</p>
+    <p class="connection-footnote">The meeting workflow may send new message text to Mistral to identify requests. Checks run every 30 seconds while this Mac is awake and online, even after you close chonkytasks.</p>
     <p class="connection-error" id="connection-error" role="alert" hidden></p>
     <div class="dialog-actions"><button class="primary" id="connection-done">Done</button></div>
   </dialog>

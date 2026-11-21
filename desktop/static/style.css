@@ -50,6 +50,20 @@ h1, h2, h3, p { margin: 0; }
 .library-row .recording-row { border-bottom: 0; min-width: 0; }
 .library-row .delete-button { margin-left: 8px; }
 .report-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+.privacy-display { display: grid; gap: 6px; justify-items: center; margin: 16px 0; }
+.privacy-display img { display: block; max-width: 100%; max-height: 410px; border: 1px solid var(--line); border-radius: 8px; }
+.privacy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(114px, 1fr)); gap: 9px; max-height: 250px; overflow: auto; padding: 3px; }
+.privacy-shot { background: var(--glass2); border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+.privacy-shot .frame { width: 100%; }
+.privacy-shot label { display: flex; gap: 4px; align-items: center; font-size: 12px; }
+.privacy-context { display: block; margin-top: 14px; margin-bottom: 5px; font-size: 13px; }
+#evidence-context { width: 100%; resize: vertical; }
+#evidence-count { margin-top: 8px; }
+#privacy-view .dialog-actions { flex-wrap: wrap; }
+.source-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
+.local-findings { margin-top: 18px; }
+.meeting-event { padding: 12px; margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.meeting-event select { margin-left: 6px; }
 .delete-dialog, .edit-dialog { width: min(420px, calc(100vw - 40px)); padding: 25px; border: 1px solid var(--line); border-radius: 14px; color: var(--ink); background: var(--glass2); box-shadow: 0 20px 70px #0003; }
 .delete-dialog::backdrop, .edit-dialog::backdrop { background: #0003; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
 .delete-dialog h2, .edit-dialog h2 { font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
