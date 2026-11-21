@@ -2,9 +2,16 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>chonkytasks motion</title>
-<meta name="description" content="A playground of the animations we like, in the chonkytasks palettes. Click any tile to replay it.">
+<meta name="description" content="A cast of pixel characters with their own personalities and a shelf of animations we like, in the chonkytasks palettes.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" type="image/svg+xml" href="/brand/mark-aqua-light.svg">
+<link rel="help" type="text/plain" href="/llms.txt" title="How this app and page are organised">
+<!-- For agents: everything here is rendered by the script at the bottom.
+     CAST   the pixel characters. id, name, role, desc, habits, lines, px.map (digits 0-4 = palette
+            bands, "." empty, "p" pink), px.parts (named groups that animate), px.eyes, click/near reactions.
+            Each has a page at /motion.html#cast/<id>.
+     T      the animation shelf tiles.
+     Styles: "the cast" and "one page per character" blocks; per-character rules are .pup-<id>. -->
 <script>
 /* Same appearance switch as the app, same saved choice. */
 function applyView(v){const r=document.documentElement;
@@ -429,12 +436,14 @@ nav a.done i{background:var(--ok);opacity:1;box-shadow:0 0 0 3px var(--ok-soft)}
 .pup-bun.flip .spin{animation:bflip .9s var(--ease)}
 @keyframes bflip{40%{transform:translateY(-4px) rotate(-200deg)}75%{transform:translateY(-1px) rotate(-360deg)}100%{transform:rotate(-360deg)}}
 /* sir snooze */
-.pup-snooze:not(.awake) .ec{opacity:0}
-.pup-snooze .sway{animation:psway 5s steps(1) infinite}
-@keyframes psway{25%{transform:translateX(-1px)}50%{transform:none}75%{transform:translateX(1px)}}
+.pup.pup-snooze:not(.awake) .ec{opacity:0}
+.pup-snooze .breathe{animation:breath 4.5s ease-in-out infinite}
+.pup-snooze .cap{animation:droop 5s steps(1) infinite}
+@keyframes droop{50%{transform:translateX(1px)}}
+.pup-snooze.awake .cap{animation:none;transform:translateY(-1px)}
 .pup-snooze .z{opacity:0;animation:zz 3s steps(6) infinite}
 .pup-snooze .z:nth-of-type(2){animation-delay:1s}.pup-snooze .z:nth-of-type(3){animation-delay:2s}
-@keyframes zz{0%{opacity:0}20%{opacity:1}100%{opacity:0;transform:translate(1.5px,-3px)}}
+@keyframes zz{0%{opacity:0}20%{opacity:1}100%{opacity:0;transform:translate(-1.5px,-3px)}}
 .pup-snooze.awake .z{animation:none;opacity:0}
 /* pip */
 .pup-pip .tilt{animation:ptilt 3s steps(1) infinite}
@@ -483,6 +492,44 @@ nav a.done i{background:var(--ok);opacity:1;box-shadow:0 0 0 3px var(--ok-soft)}
 .pup-biscuit.jump .all{animation:djump .6s steps(6)}
 @keyframes djump{50%{transform:translateY(-3px)}}
 
+/* ---------- one page per character ---------- */
+body:not(.solo) #solo{display:none}
+body.solo :is(.mhero,.sh,.shl,.cast,.grid){display:none}
+body.solo .bar{margin-top:20px}
+.nm a{color:inherit;text-decoration:none}.nm a:hover{color:var(--atext)}
+.more{display:inline-block;margin-top:12px;font-size:12.5px;font-weight:600;color:var(--atext);text-decoration:none}
+.more:hover{text-decoration:underline}
+.crumb{display:inline-block;margin:0 0 14px;color:var(--dim);text-decoration:none;font-size:13.5px;font-weight:540}
+.crumb:hover{color:var(--ink)}
+.sbox{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);padding:0;overflow:hidden}
+.astage.big{height:430px;border-bottom:0;border-right:1px solid var(--line)}
+.astage.big .pup{width:min(300px,84%);height:auto;aspect-ratio:1;margin-bottom:10px}
+.astage.big .bubble{font-size:14.5px;top:24px}
+.sinfo{padding:34px 32px;display:flex;flex-direction:column;align-items:flex-start}
+.sinfo .num{font:600 11.5px var(--mono);color:var(--faint)}
+.sinfo h1{font-size:44px;letter-spacing:-.045em;line-height:1.05;margin:8px 0 4px;font-weight:760}
+.srole{color:var(--atext);font-weight:650;font-size:15px}
+.sinfo p{color:var(--dim);font-size:15px;line-height:1.55;margin:14px 0 18px}
+.sinfo .tr span{width:64px}
+.sinfo .poke{margin-top:auto;padding:9px 16px;font-size:13.5px}
+.scols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+.scols>div{padding:20px 22px;border-radius:var(--r);background:var(--glass);border:1px solid var(--stroke)}
+.scols h3{margin:0 0 10px;font-size:15px;letter-spacing:-.01em}
+.habits{margin:0;padding-left:18px;color:var(--dim);font-size:14px;line-height:1.7}
+.lines{display:flex;flex-wrap:wrap;gap:7px}
+.line{border:0;cursor:pointer;font:600 12.5px var(--mono);color:var(--ink);padding:7px 11px;border-radius:10px;background:var(--line);transition:background .2s,transform .3s cubic-bezier(.34,1.56,.64,1)}
+.line:hover{background:var(--glass3)}.line:active{transform:scale(.94)}
+.tip{color:var(--faint);font-size:12px;margin:10px 0 0}
+.roster{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:8px;margin:8px 0 10px}
+.roster a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px 6px;border-radius:14px;text-decoration:none;color:var(--faint);
+  font-size:11px;font-weight:600;transition:background .2s,color .2s}
+.roster a:hover,.roster a[aria-current]{background:var(--glass3);color:var(--ink)}
+.roster .pup{width:54px;height:54px;margin:0}
+.pn{display:flex;justify-content:space-between;padding:4px 2px 40px}
+.pn a{color:var(--atext);text-decoration:none;font-weight:600;font-size:14px}
+.pn a:hover{text-decoration:underline}
+@media(max-width:820px){.sbox,.scols{grid-template-columns:1fr}.astage.big{border-right:0;border-bottom:1px solid var(--line);height:340px}
+  .astage.big .pup{width:min(250px,80%)}.roster{grid-template-columns:repeat(5,minmax(0,1fr))}}
 /* top scroll progress */
 .prog{position:fixed;top:0;left:0;right:0;height:3px;z-index:40;background:var(--stripes,var(--grad));transform-origin:left;transform:scaleX(0)}
 @supports (animation-timeline:scroll()){.prog{animation:grow linear both;animation-timeline:scroll()}}
@@ -531,7 +578,9 @@ html.stopped *,html.stopped *::before,html.stopped *::after{animation-play-state
   </div>
   <p class="note hide" id="calm">Your system asks for reduced motion, so everything starts paused. Press Play to watch.</p>
 
-  <h2 class="sh">The cast</h2>
+  <section id="solo"></section>
+
+  <h2 class="sh" id="the-cast">The cast</h2>
   <p class="shl">Nine characters with their own habits. They watch your pointer in their own way, blink on their own clock, and react when you get close or poke them.</p>
   <div class="cast" id="cast"></div>
 
@@ -697,14 +746,14 @@ function pix(d){
 }
 
 const CAST=[
- {id:'chonk',name:'Chonk',role:'the boss',tr:[1,2,2],mood:'unbothered',blink:[3000,7000],
+ {id:'chonk',habits:["Breathes slowly. Asleep with his eyes open", "Blinks rarely and never looks at you", "Poke: a big stretch, then a slow cat blink (it means he likes you)"],name:'Chonk',role:'the boss',tr:[1,2,2],mood:'unbothered',blink:[3000,7000],
   desc:'Has never done the same thing twice. Delegates everything, mostly to you. Will not look at you.',
   lines:['Why would I do it twice?','Automate it. I’m napping.','You did that 14 times. I counted.','Wake me when it’s compiled.'],
   svg:()=>`<ellipse class="shd" cx="60" cy="113" rx="34" ry="4"/><g class="body">${cat({lids:true}).replace('<svg class="cat"','<svg class="cat" x="15" y="40" width="90" height="72"')}</g>`,
   click(a){ cls(a,'stretch',1100); say(a,pick(this.lines)); mood(a,'stretching','unbothered',1800);
     later(()=>{ a.svg.classList.add('blink'); later(()=>a.svg.classList.remove('blink'),700); },1200); }},
 
- {id:'mochi',name:'Mochi',role:'the shy one',tr:[2,4,1],mood:'calm',blink:[1800,4000],lag:200,flipLook:1,
+ {id:'mochi',habits:["Floats one pixel up and down", "Watches you, a little late", "Come close: squishes down, fades and looks away", "Poke: shakes and blushes"],name:'Mochi',role:'the shy one',tr:[2,4,1],mood:'calm',blink:[1800,4000],lag:200,flipLook:1,
   desc:'Notices every repeated click but is too polite to mention it. Hides when you come close.',
   lines:['o-oh, hi…','I saw you copy-paste… it’s okay','um, I made you a list?','*hides*'],
   px:{map:['...0000...','..000000..','.11111111.','.1..11..1.','.11111111.','.22222222.','.22222222.','.33333333.','.33333333.','.44.44.44.'],
@@ -712,25 +761,27 @@ const CAST=[
   near(a,on){ a.svg.classList.toggle('shy',on); mood(a,on?'hiding':'calm'); },
   click(a){ cls(a,'flustered',1600); say(a,pick(this.lines)); mood(a,'flustered',a.near?'hiding':'calm',2200); }},
 
- {id:'bun',name:'Bun',role:'the overachiever',tr:[5,2,4],mood:'bouncy',blink:[1200,2600],lag:0,
+ {id:'bun',habits:["Hops, non-stop", "Ears twitch at random", "Eyes follow you instantly", "Poke: a backflip"],name:'Bun',role:'the overachiever',tr:[5,2,4],mood:'bouncy',blink:[1200,2600],lag:0,
   desc:'Will do the task forty times before your coffee is ready. Cannot sit still, ever.',
   lines:['AGAIN! AGAIN!','Done! What’s next?!','I did it 40 times already!','faster faster faster'],
   px:{map:['..00..00..','..00..00..','..0p..p0..','..11..11..','.11111111.','11..11..11','1111111111','2222pp2222','.22222222.','.33333333.','.33333333.','.44....44.'],
     parts:{earL:[2,3,0,3],earR:[6,7,0,3]},eyes:[[2,5,1],[6,5,1]],wrap:['spin','hop']},
-  init(a){ const tw=()=>later(()=>{ if(!PAUSED){ const c=pick(['twL','twR']); a.svg.classList.add(c); later(()=>a.svg.classList.remove(c),160); } tw(); },rnd(500,1800)); tw(); },
+  init(a){ const tw=()=>later(()=>{ if(a.dead) return; if(!PAUSED){ const c=pick(['twL','twR']); a.svg.classList.add(c); later(()=>a.svg.classList.remove(c),160); } tw(); },rnd(500,1800)); tw(); },
   click(a){ cls(a,'flip',900); say(a,pick(this.lines)); mood(a,'zooming','bouncy',1400); }},
 
  {id:'snooze',name:'Sir Snooze',role:'the realist',tr:[1,1,1],mood:'asleep',blink:[2500,5000],lag:900,
-  desc:'Firmly believes the best task is the one you never do. Hangs around. Mostly asleep, occasionally right.',
+  desc:'Firmly believes the best task is the one you never do. Sleeps sitting up, nightcap on, occasionally right.',
   lines:['five more minutes…','is it automated yet? …zzz','nap first, tasks later','mmh… later'],
-  px:{map:['444444444444','..0......0..','..0......0..','..00000000..','.1111111111.','.11..11..11.','.1111111111.','.2222222222.','.2222222222.','..33333333..','...444444...'],
-    parts:{branch:[0,11,0,0]},out:['branch'],eyes:[[3,5,1],[7,5,1]],wrap:['sway'],
-    extra:[0,1,2].map(i=>`<g class="z">${R(9.6,2.4,'b0',1.2,.4)+R(10.4,2.8,'b0',.4,.4)+R(10,3.2,'b0',.4,.4)+R(9.6,3.6,'b0',1.2,.4)}</g>`).join('')},
+  habits:['Sleeps sitting up with his nightcap on','Snores little pixel z’s','Breathes slowly, cap droops side to side',
+    'Poke: opens his eyes and slowly follows you for a few seconds, then dozes off again'],
+  px:{map:['.........00.','.......000..','.....0000...','...000000...','..11111111..','.1111111111.','.11..11..11.','.1111111111.','.2222222222.','222222222222','.3333333333.','.444....444.'],
+    parts:{cap:[3,11,0,3]},eyes:[[3,6,1],[7,6,1]],wrap:['breathe'],
+    extra:[0,1,2].map(i=>`<g class="z">${R(.6,2.4,'b1',1.2,.4)+R(1.4,2.8,'b1',.4,.4)+R(1,3.2,'b1',.4,.4)+R(.6,3.6,'b1',1.2,.4)}</g>`).join('')},
   click(a){ say(a,pick(this.lines),2600); if(a.svg.classList.contains('awake')) return;
     a.svg.classList.add('awake'); mood(a,'barely awake');
     later(()=>{ a.svg.classList.remove('awake'); mood(a,'asleep'); },3800); }},
 
- {id:'pip',name:'Pip',role:'the worrier',tr:[4,3,3],mood:'on edge',blink:[900,2200],lag:0,jitter:1,nearR:100,
+ {id:'pip',habits:["Head twitches every few seconds", "Glances around at random, even when nothing happened", "Come close: startles", "Poke: flaps up in a panic"],name:'Pip',role:'the worrier',tr:[4,3,3],mood:'on edge',blink:[900,2200],lag:0,jitter:1,nearR:100,
   desc:'Sees a deadline in every tab. Startles when you come close and flaps when it all gets too much.',
   lines:['is that a DEADLINE??','did we save? DID WE SAVE?','too many tabs!!','ok ok ok ok ok'],
   px:{map:['....0.0...','.....0....','..111111..','.11111111.','.1..11..1.','.111pp111.','2222222222','2222222222','.33333333.','..333333..','...4..4...'],
@@ -738,7 +789,7 @@ const CAST=[
   near(a,on){ if(!on) return; cls(a,'startle',450); if(Math.random()<.5) say(a,'!!',900); mood(a,'startled','on edge',1500); },
   click(a){ cls(a,'flapping',1500); say(a,pick(this.lines)); mood(a,'panicking','on edge',1900); }},
 
- {id:'grumbo',name:'Grumbo',role:'the critic',tr:[1,5,1],mood:'grumpy',blink:[3500,7000],lag:350,
+ {id:'grumbo',habits:["Watches the fly, not you", "Heavy brows, slow breathing, rare blinks", "Poke: catches the fly with his tongue and looks smug about it"],name:'Grumbo',role:'the critic',tr:[1,5,1],mood:'grumpy',blink:[3500,7000],lag:350,
   desc:'Only watches the fly. Unimpressed by your process. Poke him and he finally does something.',
   lines:['Ribbit. Whatever.','Seen better loops.','Hmph. Fine.'],
   px:{map:['.0000..0000.','.0000..0000.','11..1111..11','111111111111','111......111','222222222222','.2222222222.','.3333333333.','444......444'],
@@ -760,7 +811,8 @@ const CAST=[
     cls(a,'smug',2600); say(a,'*chewing*'); mood(a,'smug');
     later(()=>{ a.flyGone=false; a.fly.style.opacity=1; mood(a,'grumpy'); },3200); }},
 
- {id:'byte',name:'Byte',role:'the automator',tr:[3,5,1],mood:'standby',blink:[2000,4000],lag:250,
+ {id:'byte',habits:["Antenna blinks", "Eyes step around the visor like a robot", "Poke: runs a whole automation while its mouth lights talk"],name:'Byte',role:'the automator',tr:[3,5,1],mood:'standby',blink:[2000,4000],lag:250,
+  lines:['TASK DETECTED.','BEEP. That was 3 clicks too many.','I can do that in 1 step.','DONE ✓'],
   desc:'Speaks fluent step list. Turns anything you do twice into a button, then asks for more.',
   px:{map:['....00....','....11....','.11111111.','22......22','22......22','.22222222.','.333..333.','..333333..','..444444..','..4....4..'],
     parts:{ant:[4,5,0,0]},eyes:[[2,3,2,2],[6,3,2,2]],wrap:['bob'],extra:R(4,6,'ml')+R(5,6,'ml')},
@@ -769,7 +821,7 @@ const CAST=[
     later(()=>{ a.svg.classList.remove('proc'); a.busy=false;
       say(a,pick(['DONE ✓ saved 4 min','DONE ✓ 12 steps → 1 button','DONE ✓ you may now nap'])); mood(a,'proud','standby',2600); },2100); }},
 
- {id:'octavia',name:'Octavia',role:'the multitasker',tr:[4,3,4],mood:'busy',blink:[1500,3500],lag:100,
+ {id:'octavia',habits:["Tentacles wiggle out of sync", "Follows you smoothly", "Poke: juggles three things at once"],name:'Octavia',role:'the multitasker',tr:[4,3,4],mood:'busy',blink:[1500,3500],lag:100,
   desc:'Eight arms, eight tabs, zero dropped balls. Usually. Poke her and she shows off.',
   lines:['8 arms, 0 free time','I’m in 6 meetings rn','juggling is just parallelism','hold my tab'],
   px:{map:['...000000...','..00000000..','.1111111111.','.11..11..11.','.1111111111.','.2222222222.','.3.3.33.3.3.','.3.3.33.3.3.','.4.4.44.4.4.'],
@@ -777,7 +829,7 @@ const CAST=[
     outside:R(5.5,-1,'b0 jb')+R(5.5,-1,'b2 jb')+R(5.5,-1,'b4 jb')},
   click(a){ cls(a,'juggle',3000); say(a,pick(this.lines)); mood(a,'juggling','busy',3000); }},
 
- {id:'biscuit',name:'Biscuit',role:'the cheerleader',tr:[5,1,3],mood:'happy',blink:[1500,3200],lag:0,
+ {id:'biscuit',habits:["Tail never stops", "Pants happily", "Come close: wags and pants twice as fast", "Poke: jumps and throws pixel hearts"],name:'Biscuit',role:'the cheerleader',tr:[5,1,3],mood:'happy',blink:[1500,3200],lag:0,
   desc:'Thinks every task you do is a very good task. Gets visibly excited when you come near.',
   lines:['GOOD TASK!','you’re doing amazing!!','walk? WALK? automate?','*happy noises*'],
   px:{map:['...000000...','..00000000..','441111111144','441..11..144','441111111144','.4222..2224.','..22222222..','...33pp33..4','..333333334.','..44....44..'],
@@ -791,27 +843,52 @@ const CAST=[
 
 CAST.forEach(c=>{ if(c.px){ const p=pix(c.px); c.vb=p.vb; c.viewBox=p.viewBox; c.svg=()=>p.svg; } });
 
-$('#cast').innerHTML=CAST.map(c=>`<article class="actor glass"><div class="astage" data-id="${c.id}" tabindex="0" role="button" aria-label="Poke ${c.name}">`+
-  `<span class="mood">${c.mood}</span><div class="bubble" aria-live="polite"></div>`+
-  `<svg class="pup cat pup-${c.id}" viewBox="${c.viewBox||'0 0 120 120'}" shape-rendering="crispEdges" aria-hidden="true">${c.svg()}</svg></div>`+
-  `<div class="bio"><div class="nm"><b>${c.name}</b><span>${c.role}</span></div><p>${c.desc}</p><div class="traits">`+
-  ['Energy','Focus','Chaos'].map((l,i)=>`<div class="tr"><span>${l}</span>${[1,2,3,4,5].map(n=>`<i${n<=c.tr[i]?' class="on"':''}></i>`).join('')}</div>`).join('')+
-  `</div></div></article>`).join('');
+const traits=c=>['Energy','Focus','Chaos'].map((l,i)=>`<div class="tr"><span>${l}</span>${[1,2,3,4,5].map(n=>`<i${n<=c.tr[i]?' class="on"':''}></i>`).join('')}</div>`).join('');
+const sprite=c=>`<svg class="pup cat pup-${c.id}" viewBox="${c.viewBox||'0 0 120 120'}" shape-rendering="crispEdges" aria-hidden="true">${c.svg()}</svg>`;
+const stage=(c,big)=>`<div class="astage${big?' big':''}" data-id="${c.id}" tabindex="0" role="button" aria-label="Poke ${c.name}">`+
+  `<span class="mood">${c.mood}</span><div class="bubble" aria-live="polite"></div>${sprite(c)}</div>`;
+$('#cast').innerHTML=CAST.map(c=>`<article class="actor glass">${stage(c)}`+
+  `<div class="bio"><div class="nm"><b><a href="#cast/${c.id}">${c.name}</a></b><span>${c.role}</span></div><p>${c.desc}</p><div class="traits">${traits(c)}</div>`+
+  `<a class="more" href="#cast/${c.id}">Meet ${c.name} →</a></div></article>`).join('');
 
-const actors=CAST.map(d=>{ const st=$(`.astage[data-id=${d.id}]`), svg=st.querySelector('svg');
-  const a={d,st,svg,bub:st.querySelector('.bubble'),moodEl:st.querySelector('.mood'),near:false,lookAt:0,
+const actors=[];
+function mount(st,d){ const svg=st.querySelector('svg');
+  const a={d,st,svg,bub:st.querySelector('.bubble'),moodEl:st.querySelector('.mood'),near:false,lookAt:0,dead:false,
     eyes:[...svg.querySelectorAll('.eye')].map(e=>({cells:[...e.querySelectorAll('.ec')],x:+e.dataset.x,y:+e.dataset.y,h:+e.dataset.h,sx:0,sy:+e.dataset.h-1}))};
-  d.init?.(a); return a; });
+  d.init?.(a);
+  /* blinking, each on its own clock, sometimes twice */
+  const blinkOnce=()=>{ a.svg.classList.add('blink'); setTimeout(()=>a.svg.classList.remove('blink'),130); };
+  const next=()=>later(()=>{ if(a.dead) return; if(!PAUSED&&!document.hidden){ blinkOnce(); if(Math.random()<.2) setTimeout(blinkOnce,260); } next(); },rnd(...d.blink)); next();
+  actors.push(a); return a; }
+function unmount(a){ a.dead=true; actors.splice(actors.indexOf(a),1); }
+CAST.forEach(d=>mount($(`#cast .astage[data-id=${d.id}]`),d));
+
+/* one page per character: #cast/<id> */
+let solo=null;
+function route(){ const m=location.hash.match(/^#cast\/(\w+)/), d=m&&CAST.find(c=>c.id===m[1]), i=d?CAST.indexOf(d):-1;
+  document.body.classList.toggle('solo',!!d); if(solo){ unmount(solo); solo=null; }
+  if(!d){ $('#solo').innerHTML=''; document.title='chonkytasks motion'; return; }
+  const prev=CAST[(i+CAST.length-1)%CAST.length], next=CAST[(i+1)%CAST.length];
+  $('#solo').innerHTML=`<a class="crumb" href="#the-cast">← All characters</a>`+
+    `<div class="sbox glass">${stage(d,true)}<div class="sinfo"><span class="num">${String(i+1).padStart(2,'0')} / ${String(CAST.length).padStart(2,'0')}</span>`+
+    `<h1>${d.name}</h1><div class="srole">${d.role}</div><p>${d.desc}</p><div class="traits">${traits(d)}</div>`+
+    `<button class="btn poke">Poke ${d.name}</button></div></div>`+
+    `<div class="scols"><div><h3>Habits</h3><ul class="habits">${(d.habits||[]).map(h=>`<li>${h}</li>`).join('')}</ul></div>`+
+    `<div><h3>Things ${d.name} says</h3><div class="lines">${(d.lines||[]).map(l=>`<button class="line">${l}</button>`).join('')}</div>`+
+    `<p class="tip">Tap a line to hear it.</p></div></div>`+
+    `<nav class="roster" aria-label="Characters">${CAST.map(c=>`<a href="#cast/${c.id}" title="${c.name}"${c===d?' aria-current="page"':''}>${sprite(c)}<span>${c.name}</span></a>`).join('')}</nav>`+
+    `<div class="pn"><a href="#cast/${prev.id}">← ${prev.name}</a><a href="#cast/${next.id}">${next.name} →</a></div>`;
+  solo=mount($('#solo .astage'),d); document.title=`${d.name}, ${d.role} · chonkytasks`; scrollTo(0,0); }
+$('#solo').addEventListener('click',e=>{ if(!solo) return;
+  if(e.target.closest('.poke')) solo.d.click(solo);
+  const l=e.target.closest('.line'); if(l) say(solo,l.textContent); });
+addEventListener('hashchange',route); route();
 
 function say(a,t,ms=2400){ a.bub.textContent=t; a.bub.classList.add('on'); clearTimeout(a._bt); a._bt=later(()=>a.bub.classList.remove('on'),ms); }
 function mood(a,m,back,ms){ a.moodEl.textContent=m; a.moodEl.classList.add('flash'); clearTimeout(a._mf); clearTimeout(a._mb);
   a._mf=later(()=>a.moodEl.classList.remove('flash'),600); if(back) a._mb=later(()=>{ a.moodEl.textContent=back; },ms); }
 function cls(a,c,ms){ a.svg.classList.remove(c); void a.svg.getBoundingClientRect(); a.svg.classList.add(c);
   clearTimeout(a['_c'+c]); if(ms) a['_c'+c]=later(()=>a.svg.classList.remove(c),ms); }
-
-/* blinking, each on its own clock, sometimes twice */
-actors.forEach(a=>{ const blinkOnce=()=>{ a.svg.classList.add('blink'); setTimeout(()=>a.svg.classList.remove('blink'),130); };
-  const next=()=>later(()=>{ if(!PAUSED&&!document.hidden){ blinkOnce(); if(Math.random()<.2) setTimeout(blinkOnce,260); } next(); },rnd(...a.d.blink)); next(); });
 
 let PT=null;
 addEventListener('pointermove',e=>PT={x:e.clientX,y:e.clientY,t:performance.now()});
@@ -843,8 +920,8 @@ function castFrame(now){ const dt=Math.min(.05,(now-lastT)/1000); lastT=now;
   requestAnimationFrame(castFrame); }
 requestAnimationFrame(castFrame);
 
-$('#cast').addEventListener('click',e=>{ const st=e.target.closest('.astage'); if(!st) return; const a=actors.find(x=>x.st===st); a.d.click(a); });
-$('#cast').addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('astage')){ e.preventDefault(); e.target.click(); } });
+document.addEventListener('click',e=>{ const st=e.target.closest('.astage'); if(!st) return; const a=actors.find(x=>x.st===st); if(a) a.d.click(a); });
+document.addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('astage')){ e.preventDefault(); e.target.click(); } });
 
 /* appearance switch, same as the app */
 const VIEWS=['light','dark','mistral'];

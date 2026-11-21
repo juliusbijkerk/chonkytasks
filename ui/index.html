@@ -227,6 +227,17 @@ h2{font-size:32px;margin:0 0 10px;letter-spacing:-.035em;font-weight:680;line-he
 .rectime{font:700 28px var(--sans);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .btn.stop{background:var(--rec);margin-left:auto}
 .recording .rec-idle{display:none}.rec-live{display:none}.recording .rec-live{display:flex}
+.camopt{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:540;color:var(--dim);cursor:pointer;user-select:none}
+.camopt input{position:absolute;opacity:0;pointer-events:none}
+.camopt .sw{width:30px;height:18px;border-radius:999px;background:var(--line);position:relative;transition:background .25s}
+.camopt .sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .35s cubic-bezier(.34,1.56,.64,1)}
+.camopt input:checked+.sw{background:var(--a1)}
+.camopt input:checked+.sw::after{transform:translateX(12px)}
+.camopt input:focus-visible+.sw{outline:2px solid var(--a1);outline-offset:2px}
+.campv{display:none;width:132px;aspect-ratio:16/9;object-fit:cover;border-radius:12px;margin-top:12px;transform:scaleX(-1);
+  background:var(--line);box-shadow:0 0 0 1px var(--stroke)}
+.recording .campv.on{display:block}
 .loaded{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--dim);margin-top:12px}
 .loaded i{width:8px;height:8px;border-radius:2px;background:var(--ok)}
 
@@ -441,6 +452,20 @@ code{background:var(--line);padding:2px 7px;border-radius:7px;font:12.5px var(--
 .tag.partial,.tag.human_in_loop{color:var(--warn);background:var(--warn-soft)}
 .why{margin:14px 0 20px;font-size:13.5px;color:var(--dim);line-height:1.55;flex:1}
 .opp .btn{align-self:flex-start}
+.oppact{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.agreq{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--dim);font-weight:560;margin-bottom:4px}
+.agreq textarea{background:var(--glass2);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:10px 14px;
+  font:inherit;font-size:14px;resize:vertical}
+.agreq textarea:focus{outline:none;border-color:color-mix(in srgb,var(--a1) 60%,transparent);box-shadow:0 0 0 4px color-mix(in srgb,var(--a1) 16%,transparent)}
+.agentlog{list-style:none;margin:0;padding:0;font:12.5px var(--mono);color:var(--dim)}
+.agentlog li{padding:4px 0;animation:rise .35s var(--ease)}
+.agentlog .op{display:inline-block;min-width:86px;color:var(--atext);font-weight:600}
+.agentlog .op.ok{color:var(--ok)}
+.sheet{margin-top:14px;overflow-x:auto;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
+.sheet table{border-collapse:collapse;width:100%;font-size:13px}
+.sheet th,.sheet td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+.sheet th{font-size:11.5px;color:var(--faint);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.sheet a{color:var(--atext)}
 
 /* ---------- skill + run ---------- */
 .panel{padding:26px 28px}
@@ -500,27 +525,37 @@ ol.acts{list-style:none;margin:0;padding:0}
   gap:8px;align-items:center;pointer-events:none;width:calc(100% - 32px)}
 .toast{padding:11px 18px;border-radius:999px;font-size:13.5px;font-weight:520;max-width:520px;animation:rise .4s var(--ease)}
 .toast.bad{color:var(--bad)}
-footer{padding:30px 0 40px;font-size:12.5px;color:var(--faint)}
-footer .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
-footer a{color:var(--dim);text-decoration:none;font-family:var(--mono);padding:3px 10px;border-radius:999px;background:var(--line);transition:.2s}
-footer a:hover{color:var(--ink);background:var(--glass3)}
-footer .sp{margin-right:auto}
-footer .team{flex-basis:100%;display:flex;gap:6px 18px;flex-wrap:wrap;align-items:center;padding-top:14px;border-top:1px solid var(--line)}
-footer .team ul{display:flex;flex-wrap:wrap;gap:6px 18px;list-style:none;margin:0;padding:0}
-footer .team li{display:flex;align-items:center;gap:2px;color:var(--dim)}
-footer .team li:not(:last-child)::after{content:"·";margin-left:14px;color:var(--faint)}
-footer a.ico{display:inline-grid;place-items:center;width:26px;height:26px;padding:0;background:none;color:var(--faint)}
-footer a.ico:first-of-type{margin-left:4px}
-footer a.ico svg{width:14px;height:14px}
-footer a.ico:hover{color:var(--ink);background:var(--line)}
-footer a.ico:focus-visible,footer a.ev:focus-visible{outline:2px solid currentColor;outline-offset:2px}
-footer a.ev{font-family:inherit;padding:0;background:none;color:inherit;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
-footer a.ev:hover{background:none;color:var(--ink);text-decoration-color:currentColor}
-.lab{display:flex;align-items:center;gap:6px;flex:none;margin-right:6px;color:var(--dim);text-decoration:none;font-size:13px;font-weight:540;
-  padding:7px 12px;border-radius:999px;background:var(--line);transition:color .2s,background .2s}
-.lab:hover{color:var(--ink);background:var(--glass3)}
-.lab svg{width:14px;height:14px;color:var(--a1);transition:transform .6s var(--ease)}
-.lab:hover svg{transform:rotate(72deg) scale(1.15)}
+footer{padding:34px 0 44px;font-size:13px;color:var(--faint)}
+.fbrand{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;padding-top:26px;border-top:1px solid var(--line)}
+.fbrand .cat{width:25px;height:20px;flex:none}
+.fbrand b{color:var(--ink);font-size:15px;font-weight:740;letter-spacing:-.03em}
+.fbrand span{color:var(--faint)}
+/* label column on the left, everything lines up; on a half screen it still fits */
+.frows{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:12px 28px;margin:0;align-items:center}
+.frows dt{color:var(--faint);font-size:12px;font-weight:560}
+.frows dd{margin:0;color:var(--dim);display:flex;align-items:center;flex-wrap:wrap;min-height:26px}
+.frows .dot{margin:0 8px;color:var(--faint)}
+footer ul.team{flex:1 1 100%;min-width:0;display:flex;flex-wrap:wrap;gap:4px 16px;list-style:none;margin:0;padding:0}
+footer ul.team li{display:flex;align-items:center;gap:1px;color:var(--dim)}
+footer .chips{gap:6px}
+footer .chips a{color:var(--dim);text-decoration:none;font:12px var(--mono);padding:3px 10px;border-radius:999px;background:var(--line);transition:.2s}
+footer .chips a:hover{color:var(--ink);background:var(--glass3)}
+footer .ico{border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;color:var(--faint);transition:.2s}
+footer li>.ico:first-of-type{margin-left:4px}
+footer .ico svg{width:14px;height:14px}
+footer .ico:hover{color:var(--ink);background:var(--line)}
+footer .ico.dc:hover{color:#5865f2}
+footer :is(a,button):focus-visible{outline:2px solid currentColor;outline-offset:2px}
+footer a.ev{color:var(--dim);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;transition:.2s}
+footer a.ev:hover{color:var(--ink);text-decoration-color:currentColor}
+footer a.fun{display:inline-flex;align-items:center;gap:7px;color:var(--ink);font-weight:600;text-decoration:none}
+footer a.fun svg{width:14px;height:14px;color:var(--a1);transition:transform .6s var(--ease)}
+footer a.fun span{color:var(--faint);font-weight:400}
+footer a.fun span::before{content:"·";margin:0 8px 0 2px}
+footer a.fun:hover svg{transform:rotate(72deg) scale(1.15)}
+footer a.fun:hover span{color:var(--dim)}
+@media(max-width:520px){.frows{grid-template-columns:minmax(0,1fr);gap:4px}.frows dd{margin-bottom:10px}.fbrand span{flex-basis:100%}
+  footer a.fun span{display:none}}
 
 @media(max-width:960px){.pipe{grid-template-columns:repeat(3,minmax(0,1fr))}.hero h1{font-size:48px}}
 @media(max-width:760px){.cap{grid-template-columns:1fr}.or{padding:4px 32px;text-align:center}.or::before,.or::after{display:none}}
@@ -530,7 +565,6 @@ footer a.ev:hover{background:none;color:var(--ink);text-decoration-color:current
   .hb{gap:8px;padding:0 6px 0 10px;height:54px}
   .brand b{display:none}
   nav a{padding:6px 10px} nav a span{display:none} nav a i{width:7px;height:7px}
-  .lab span{display:none} .lab{padding:8px;margin-right:0}
   .hero{padding:52px 0 20px} .hero h1{font-size:38px} .hero p{font-size:16px} .opt{padding:24px 22px} .hint{padding:14px 22px}
   .pipe{grid-template-columns:repeat(2,minmax(0,1fr))}
   .st{grid-template-columns:40px minmax(0,1fr);gap:4px 10px}
@@ -569,7 +603,6 @@ html.paused *,html.paused *::before,html.paused *::after{animation-play-state:pa
     <a href="#opps" data-k="opps"><i></i><span>Loops</span></a>
     <a href="#auto" data-k="auto"><i></i><span>Automate</span></a>
   </nav>
-  <a class="lab" href="/motion.html" title="Animations we like"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7z"/></svg><span>Motion</span></a>
   <div class="views" id="views" role="radiogroup" aria-label="Appearance">
     <span class="vind" id="vind" aria-hidden="true"></span>
     <button role="radio" data-view="light" data-action="set-view" aria-label="Light" title="Light">
@@ -602,7 +635,10 @@ html.paused *,html.paused *::before,html.paused *::after{animation-play-state:pa
         <div class="act-row rec-idle">
           <button class="btn" id="recbtn" data-action="start-recording">
             <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>Start recording</button>
+          <label class="camopt" title="Also film yourself, saved as a separate file. Shows what happens off screen: paper, phone, a colleague.">
+            <input type="checkbox" id="camopt" data-action="toggle-camera"><span class="sw" aria-hidden="true"></span>Camera too</label>
         </div>
+        <video id="campv" class="campv" muted playsinline aria-label="Camera preview"></video>
         <div class="live rec-live" role="status" aria-live="polite">
           <span class="recdot" aria-hidden="true"></span>
           <span class="rectime" id="rectime">0:00</span>
@@ -664,19 +700,22 @@ html.paused *,html.paused *::before,html.paused *::after{animation-play-state:pa
 </main>
 
 <footer><div class="wrap">
-  <span class="sp">chonkytasks · built at <a class="ev" href="https://luma.com/le-chonk-in-london" target="_blank" rel="noopener noreferrer">Le Chonk in London</a>, Mistral hackathon 2026</span>
-  <span>For agents</span>
-  <a href="/motion.html">motion</a>
-  <a href="/llms.txt">llms.txt</a><a href="/api/report.md">report.md</a><a href="/api">api</a>
-  <div class="team">
-    <span>Built by</span>
-    <ul aria-label="Team">
-      <li>Julius<a class="ico" href="https://github.com/juliusbijkerk" target="_blank" rel="noopener noreferrer" aria-label="Julius on GitHub" title="github.com/juliusbijkerk"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></a><a class="ico" href="https://www.linkedin.com/in/julius-bijkerk-63679777/" target="_blank" rel="noopener noreferrer" aria-label="Julius on LinkedIn" title="linkedin.com/in/julius-bijkerk-63679777"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M0 1.15C0 .52.52 0 1.18 0h13.64C15.48 0 16 .52 16 1.15v13.7c0 .63-.52 1.15-1.18 1.15H1.18C.52 16 0 15.48 0 14.85V1.15Zm4.94 12.24V6.17H2.542v7.22h2.4Zm-1.2-8.21c.84 0 1.36-.55 1.36-1.25-.01-.71-.52-1.25-1.34-1.25-.82 0-1.36.54-1.36 1.25 0 .7.52 1.25 1.33 1.25h.01Zm4.91 8.21V9.36c0-.22.02-.43.08-.58.17-.43.57-.88 1.23-.88.87 0 1.21.66 1.21 1.63v3.86h2.4V9.25c0-2.22-1.18-3.25-2.76-3.25-1.27 0-1.84.7-2.16 1.19v.03h-.02l.02-.03V6.17h-2.4c.03.68 0 7.22 0 7.22h2.4Z"/></svg></a></li>
-      <li>Arthur<a class="ico" href="https://github.com/MisteFr" target="_blank" rel="noopener noreferrer" aria-label="Arthur on GitHub" title="github.com/MisteFr"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></a><a class="ico" href="https://www.linkedin.com/in/arthur-bigot/" target="_blank" rel="noopener noreferrer" aria-label="Arthur on LinkedIn" title="linkedin.com/in/arthur-bigot"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M0 1.15C0 .52.52 0 1.18 0h13.64C15.48 0 16 .52 16 1.15v13.7c0 .63-.52 1.15-1.18 1.15H1.18C.52 16 0 15.48 0 14.85V1.15Zm4.94 12.24V6.17H2.542v7.22h2.4Zm-1.2-8.21c.84 0 1.36-.55 1.36-1.25-.01-.71-.52-1.25-1.34-1.25-.82 0-1.36.54-1.36 1.25 0 .7.52 1.25 1.33 1.25h.01Zm4.91 8.21V9.36c0-.22.02-.43.08-.58.17-.43.57-.88 1.23-.88.87 0 1.21.66 1.21 1.63v3.86h2.4V9.25c0-2.22-1.18-3.25-2.76-3.25-1.27 0-1.84.7-2.16 1.19v.03h-.02l.02-.03V6.17h-2.4c.03.68 0 7.22 0 7.22h2.4Z"/></svg></a></li>
-      <li>Nathan<a class="ico" href="https://github.com/Nathanj-ones" target="_blank" rel="noopener noreferrer" aria-label="Nathan on GitHub" title="github.com/Nathanj-ones"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></a><a class="ico" href="https://www.linkedin.com/in/nathanjonez/" target="_blank" rel="noopener noreferrer" aria-label="Nathan on LinkedIn" title="linkedin.com/in/nathanjonez"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M0 1.15C0 .52.52 0 1.18 0h13.64C15.48 0 16 .52 16 1.15v13.7c0 .63-.52 1.15-1.18 1.15H1.18C.52 16 0 15.48 0 14.85V1.15Zm4.94 12.24V6.17H2.542v7.22h2.4Zm-1.2-8.21c.84 0 1.36-.55 1.36-1.25-.01-.71-.52-1.25-1.34-1.25-.82 0-1.36.54-1.36 1.25 0 .7.52 1.25 1.33 1.25h.01Zm4.91 8.21V9.36c0-.22.02-.43.08-.58.17-.43.57-.88 1.23-.88.87 0 1.21.66 1.21 1.63v3.86h2.4V9.25c0-2.22-1.18-3.25-2.76-3.25-1.27 0-1.84.7-2.16 1.19v.03h-.02l.02-.03V6.17h-2.4c.03.68 0 7.22 0 7.22h2.4Z"/></svg></a></li>
-      <li>Mehdi<a class="ico" href="https://github.com/MehdiBsr" target="_blank" rel="noopener noreferrer" aria-label="Mehdi on GitHub" title="github.com/MehdiBsr"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></a><a class="ico" href="https://www.linkedin.com/in/mehdiboussoura/" target="_blank" rel="noopener noreferrer" aria-label="Mehdi on LinkedIn" title="linkedin.com/in/mehdiboussoura"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M0 1.15C0 .52.52 0 1.18 0h13.64C15.48 0 16 .52 16 1.15v13.7c0 .63-.52 1.15-1.18 1.15H1.18C.52 16 0 15.48 0 14.85V1.15Zm4.94 12.24V6.17H2.542v7.22h2.4Zm-1.2-8.21c.84 0 1.36-.55 1.36-1.25-.01-.71-.52-1.25-1.34-1.25-.82 0-1.36.54-1.36 1.25 0 .7.52 1.25 1.33 1.25h.01Zm4.91 8.21V9.36c0-.22.02-.43.08-.58.17-.43.57-.88 1.23-.88.87 0 1.21.66 1.21 1.63v3.86h2.4V9.25c0-2.22-1.18-3.25-2.76-3.25-1.27 0-1.84.7-2.16 1.19v.03h-.02l.02-.03V6.17h-2.4c.03.68 0 7.22 0 7.22h2.4Z"/></svg></a></li>
-    </ul>
-  </div>
+  <div class="fbrand"><svg class="cat" viewBox="0 0 10 8" shape-rendering="crispEdges" aria-hidden="true"><rect class="b0" x="1" y="0" width="1" height="1"/><rect class="b0" x="8" y="0" width="1" height="1"/><rect class="b0" x="0" y="1" width="1" height="1"/><rect class="b0" x="1" y="1" width="1" height="1"/><rect class="b0" x="2" y="1" width="1" height="1"/><rect class="b0" x="7" y="1" width="1" height="1"/><rect class="b0" x="8" y="1" width="1" height="1"/><rect class="b0" x="9" y="1" width="1" height="1"/><rect class="b1" x="0" y="2" width="1" height="1"/><rect class="b1" x="1" y="2" width="1" height="1"/><rect class="b1" x="2" y="2" width="1" height="1"/><rect class="b1" x="3" y="2" width="1" height="1"/><rect class="b1" x="4" y="2" width="1" height="1"/><rect class="b1" x="5" y="2" width="1" height="1"/><rect class="b1" x="6" y="2" width="1" height="1"/><rect class="b1" x="7" y="2" width="1" height="1"/><rect class="b1" x="8" y="2" width="1" height="1"/><rect class="b1" x="9" y="2" width="1" height="1"/><rect class="b1" x="0" y="3" width="1" height="1"/><rect class="b1" x="1" y="3" width="1" height="1"/><rect class="b1" x="3" y="3" width="1" height="1"/><rect class="b1" x="4" y="3" width="1" height="1"/><rect class="b1" x="5" y="3" width="1" height="1"/><rect class="b1" x="6" y="3" width="1" height="1"/><rect class="b1" x="8" y="3" width="1" height="1"/><rect class="b1" x="9" y="3" width="1" height="1"/><rect class="b2" x="0" y="4" width="1" height="1"/><rect class="b2" x="1" y="4" width="1" height="1"/><rect class="b2" x="2" y="4" width="1" height="1"/><rect class="b2" x="3" y="4" width="1" height="1"/><rect class="b2" x="4" y="4" width="1" height="1"/><rect class="b2" x="5" y="4" width="1" height="1"/><rect class="b2" x="6" y="4" width="1" height="1"/><rect class="b2" x="7" y="4" width="1" height="1"/><rect class="b2" x="8" y="4" width="1" height="1"/><rect class="b2" x="9" y="4" width="1" height="1"/><rect class="b3" x="0" y="5" width="1" height="1"/><rect class="b3" x="1" y="5" width="1" height="1"/><rect class="b3" x="2" y="5" width="1" height="1"/><rect class="b3" x="3" y="5" width="1" height="1"/><rect class="b3" x="4" y="5" width="1" height="1"/><rect class="b3" x="5" y="5" width="1" height="1"/><rect class="b3" x="6" y="5" width="1" height="1"/><rect class="b3" x="7" y="5" width="1" height="1"/><rect class="b3" x="8" y="5" width="1" height="1"/><rect class="b3" x="9" y="5" width="1" height="1"/><rect class="b3" x="1" y="6" width="1" height="1"/><rect class="b3" x="2" y="6" width="1" height="1"/><rect class="b3" x="3" y="6" width="1" height="1"/><rect class="b3" x="4" y="6" width="1" height="1"/><rect class="b3" x="5" y="6" width="1" height="1"/><rect class="b3" x="6" y="6" width="1" height="1"/><rect class="b3" x="7" y="6" width="1" height="1"/><rect class="b3" x="8" y="6" width="1" height="1"/><rect class="b4" x="1" y="7" width="1" height="1"/><rect class="b4" x="2" y="7" width="1" height="1"/><rect class="b4" x="7" y="7" width="1" height="1"/><rect class="b4" x="8" y="7" width="1" height="1"/></svg><b>chonkytasks</b><span>Show it once. We find the chonky tasks.</span></div>
+  <dl class="frows">
+    <dt>Made at</dt>
+    <dd><a class="ev" href="https://luma.com/le-chonk-in-london" target="_blank" rel="noopener noreferrer">Le Chonk in London</a><span class="dot">·</span>Mistral hackathon 2026</dd>
+    <dt>Built by</dt>
+    <dd><ul class="team" aria-label="Team">
+      <li>Julius<a class="ico" href="https://github.com/juliusbijkerk" target="_blank" rel="noopener noreferrer" aria-label="Julius on GitHub" title="github.com/juliusbijkerk"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></a><a class="ico" href="https://www.linkedin.com/in/julius-bijkerk-63679777/" target="_blank" rel="noopener noreferrer" aria-label="Julius on LinkedIn" title="linkedin.com/in/julius-bijkerk-63679777"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M0 1.15C0 .52.52 0 1.18 0h13.64C15.48 0 16 .52 16 1.15v13.7c0 .63-.52 1.15-1.18 1.15H1.18C.52 16 0 15.48 0 14.85V1.15Zm4.94 12.24V6.17H2.542v7.22h2.4Zm-1.2-8.21c.84 0 1.36-.55 1.36-1.25-.01-.71-.52-1.25-1.34-1.25-.82 0-1.36.54-1.36 1.25 0 .7.52 1.25 1.33 1.25h.01Zm4.91 8.21V9.36c0-.22.02-.43.08-.58.17-.43.57-.88 1.23-.88.87 0 1.21.66 1.21 1.63v3.86h2.4V9.25c0-2.22-1.18-3.25-2.76-3.25-1.27 0-1.84.7-2.16 1.19v.03h-.02l.02-.03V6.17h-2.4c.03.68 0 7.22 0 7.22h2.4Z"/></svg></a><button class="ico dc" type="button" data-action="copy-discord" data-discord="juliusbijkerk" aria-label="Copy Julius's Discord handle" title="Discord: juliusbijkerk (click to copy)"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.009c.12.1.246.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03ZM8.02 15.331c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418Zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418Z"/></svg></button></li>
+      <li>Arthur<a class="ico" href="https://github.com/MisteFr" target="_blank" rel="noopener noreferrer" aria-label="Arthur on GitHub" title="github.com/MisteFr"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></a><a class="ico" href="https://www.linkedin.com/in/arthur-bigot/" target="_blank" rel="noopener noreferrer" aria-label="Arthur on LinkedIn" title="linkedin.com/in/arthur-bigot"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M0 1.15C0 .52.52 0 1.18 0h13.64C15.48 0 16 .52 16 1.15v13.7c0 .63-.52 1.15-1.18 1.15H1.18C.52 16 0 15.48 0 14.85V1.15Zm4.94 12.24V6.17H2.542v7.22h2.4Zm-1.2-8.21c.84 0 1.36-.55 1.36-1.25-.01-.71-.52-1.25-1.34-1.25-.82 0-1.36.54-1.36 1.25 0 .7.52 1.25 1.33 1.25h.01Zm4.91 8.21V9.36c0-.22.02-.43.08-.58.17-.43.57-.88 1.23-.88.87 0 1.21.66 1.21 1.63v3.86h2.4V9.25c0-2.22-1.18-3.25-2.76-3.25-1.27 0-1.84.7-2.16 1.19v.03h-.02l.02-.03V6.17h-2.4c.03.68 0 7.22 0 7.22h2.4Z"/></svg></a><button class="ico dc" type="button" data-action="copy-discord" data-discord="Miste#0001" aria-label="Copy Arthur's Discord handle" title="Discord: Miste#0001 (click to copy)"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.009c.12.1.246.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03ZM8.02 15.331c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418Zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418Z"/></svg></button></li>
+      <li>Nathan<a class="ico" href="https://github.com/Nathanj-ones" target="_blank" rel="noopener noreferrer" aria-label="Nathan on GitHub" title="github.com/Nathanj-ones"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></a><a class="ico" href="https://www.linkedin.com/in/nathanjonez/" target="_blank" rel="noopener noreferrer" aria-label="Nathan on LinkedIn" title="linkedin.com/in/nathanjonez"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M0 1.15C0 .52.52 0 1.18 0h13.64C15.48 0 16 .52 16 1.15v13.7c0 .63-.52 1.15-1.18 1.15H1.18C.52 16 0 15.48 0 14.85V1.15Zm4.94 12.24V6.17H2.542v7.22h2.4Zm-1.2-8.21c.84 0 1.36-.55 1.36-1.25-.01-.71-.52-1.25-1.34-1.25-.82 0-1.36.54-1.36 1.25 0 .7.52 1.25 1.33 1.25h.01Zm4.91 8.21V9.36c0-.22.02-.43.08-.58.17-.43.57-.88 1.23-.88.87 0 1.21.66 1.21 1.63v3.86h2.4V9.25c0-2.22-1.18-3.25-2.76-3.25-1.27 0-1.84.7-2.16 1.19v.03h-.02l.02-.03V6.17h-2.4c.03.68 0 7.22 0 7.22h2.4Z"/></svg></a><a class="ico" href="mailto:nathanjonez@me.com" aria-label="Email Nathan" title="nathanjonez@me.com"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg></a></li>
+      <li>Mehdi<a class="ico" href="https://github.com/MehdiBsr" target="_blank" rel="noopener noreferrer" aria-label="Mehdi on GitHub" title="github.com/MehdiBsr"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></a><a class="ico" href="https://www.linkedin.com/in/mehdiboussoura/" target="_blank" rel="noopener noreferrer" aria-label="Mehdi on LinkedIn" title="linkedin.com/in/mehdiboussoura"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M0 1.15C0 .52.52 0 1.18 0h13.64C15.48 0 16 .52 16 1.15v13.7c0 .63-.52 1.15-1.18 1.15H1.18C.52 16 0 15.48 0 14.85V1.15Zm4.94 12.24V6.17H2.542v7.22h2.4Zm-1.2-8.21c.84 0 1.36-.55 1.36-1.25-.01-.71-.52-1.25-1.34-1.25-.82 0-1.36.54-1.36 1.25 0 .7.52 1.25 1.33 1.25h.01Zm4.91 8.21V9.36c0-.22.02-.43.08-.58.17-.43.57-.88 1.23-.88.87 0 1.21.66 1.21 1.63v3.86h2.4V9.25c0-2.22-1.18-3.25-2.76-3.25-1.27 0-1.84.7-2.16 1.19v.03h-.02l.02-.03V6.17h-2.4c.03.68 0 7.22 0 7.22h2.4Z"/></svg></a><button class="ico dc" type="button" data-action="copy-discord" data-discord="Xao.o" aria-label="Copy Mehdi's Discord handle" title="Discord: Xao.o (click to copy)"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.009c.12.1.246.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03ZM8.02 15.331c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418Zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418Z"/></svg></button><a class="ico" href="mailto:mehdi.boussoura2006@gmail.com" aria-label="Email Mehdi" title="mehdi.boussoura2006@gmail.com"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg></a></li>
+    </ul></dd>
+    <dt>For agents</dt>
+    <dd class="chips"><a href="/llms.txt">llms.txt</a><a href="/api/report.md">report.md</a><a href="/api">api</a></dd>
+    <dt>More fun</dt>
+    <dd><a class="fun" href="/motion.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>motion<span>the pixel cast and animations we like</span></a></dd>
+  </dl>
 </div></footer>
 
 <div id="toasts" role="status" aria-live="polite"></div>
@@ -711,6 +750,10 @@ function countUp(el){
     el.textContent=(v*e).toFixed(d)+suf; if(p<1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
+
+/* Discord has no public profile link for a username, so the icon copies the handle */
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-discord]'); if(!b) return; const h=b.dataset.discord;
+  (navigator.clipboard?navigator.clipboard.writeText(h):Promise.reject()).then(()=>toast(`Copied ${h}. Paste it in Discord to add them.`),()=>toast(`Discord: ${h}`)); });
 
 /* nothing animates in a background tab */
 document.addEventListener('visibilitychange',()=>document.documentElement.classList.toggle('paused',document.hidden));
@@ -768,7 +811,7 @@ async function send(files){
 /* ---------------- record in the browser ----------------
    Chunks stream to the server every few seconds, so a long recording never
    has to fit in this tab. You can leave this page; come back to stop. */
-const R={rec:null,streams:[],chain:Promise.resolve(),t0:0,tick:null,bytes:0};
+const R={rec:null,cam:null,streams:[],chain:Promise.resolve(),camChain:Promise.resolve(),camDone:null,t0:0,tick:null,bytes:0};
 const fmtDur=s=>{s=Math.floor(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;
   return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0')};
 
@@ -781,14 +824,26 @@ async function startRecording(){
   let mic=null;
   try{ mic=await navigator.mediaDevices.getUserMedia({audio:true}); }
   catch(e){ toast('No microphone, recording the screen only'); }
+  let cam=null;
+  if($('#camopt').checked){
+    try{ cam=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:360},frameRate:{ideal:15}},audio:false}); }
+    catch(e){ toast('No camera, recording without it'); } }
   const stream=new MediaStream([...screen.getVideoTracks(),...(mic?mic.getAudioTracks():[])]);
   const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4']
     .find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||'';
-  const r=await post('/api/record/start',{mime});
+  const r=await post('/api/record/start',{mime,camera:!!cam});
   if(!r.ok){ const j=await r.json().catch(()=>({})); toast(j.error||'Could not start',true);
-    [screen,mic].forEach(s=>s&&s.getTracks().forEach(t=>t.stop())); return false; }
+    [screen,mic,cam].forEach(s=>s&&s.getTracks().forEach(t=>t.stop())); return false; }
   const rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:1_200_000}:{});
-  Object.assign(R,{rec,streams:[screen,mic],chain:Promise.resolve(),t0:Date.now(),bytes:0});
+  Object.assign(R,{rec,cam:null,camDone:null,streams:[screen,mic,cam],chain:Promise.resolve(),camChain:Promise.resolve(),t0:Date.now(),bytes:0});
+  if(cam){ /* separate file, same clock: what happens off screen */
+    const cmime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4'].find(m=>MediaRecorder.isTypeSupported(m))||'';
+    R.cam=new MediaRecorder(cam,cmime?{mimeType:cmime,videoBitsPerSecond:500_000}:{});
+    R.cam.ondataavailable=e=>{ if(!e.data.size) return;
+      R.camChain=R.camChain.then(()=>fetch('/api/record/camchunk',{method:'POST',body:e.data})).catch(()=>toast('A camera chunk failed to upload',true)); };
+    R.camDone=new Promise(res=>R.cam.onstop=res);
+    R.cam.start(3000);
+    const pv=$('#campv'); pv.srcObject=cam; pv.classList.add('on'); pv.play().catch(()=>{}); }
   rec.ondataavailable=e=>{ if(!e.data.size) return;
     R.chain=R.chain.then(()=>fetch('/api/record/chunk',{method:'POST',body:e.data}))
       .then(()=>{R.bytes+=e.data.size}).catch(()=>toast('A chunk failed to upload',true)); };
@@ -802,18 +857,32 @@ async function startRecording(){
     document.title='● '+fmtDur(s)+' · chonkytasks'; },250);
   mirror(); return true;
 }
-function stopRecording(){ if(R.rec&&R.rec.state!=='inactive') R.rec.stop(); }
+function stopRecording(){ if(R.cam&&R.cam.state!=='inactive') R.cam.stop(); if(R.rec&&R.rec.state!=='inactive') R.rec.stop(); }
 async function finishRecording(){
   clearInterval(R.tick); R.streams.forEach(s=>s&&s.getTracks().forEach(t=>t.stop()));
   $('#capture').classList.remove('recording'); document.title='chonkytasks'; drop.disabled=false;
   $('#jobline').textContent='Saving the recording…'; renderFeed();
-  await R.chain; R.rec=null;
+  if(R.cam&&R.cam.state!=='inactive') R.cam.stop();
+  const pv=$('#campv'); pv.classList.remove('on'); pv.srcObject=null;
+  await R.chain; if(R.camDone){ await R.camDone; await R.camChain; } R.rec=null; R.cam=null;
   const j=await (await post('/api/record/stop',{})).json().catch(()=>({error:'bad response'}));
   if(j.error){ toast(j.error,true); refresh(); return; }
   toast(`Recorded ${fmtDur(j.seconds)}. Working on it.`);
   refresh();
 }
 $('#recbtn').onclick=startRecording;
+/* Phones cannot record the screen from a web page, but they have a built-in
+   recorder. Say so, instead of offering a button that cannot work. */
+if(!navigator.mediaDevices?.getDisplayMedia||/iPhone|iPad|iPod|Android/.test(navigator.userAgent)){
+  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent);
+  const box=$('#recbox');
+  box.querySelector('b').textContent='Record with your phone';
+  box.querySelector(':scope > span:not(.ic)').innerHTML=ios
+    ?'Swipe down from the top right, tap <strong>Screen Recording</strong> (hold it to turn the mic on), do the task, stop it, then upload it here.'
+    :'Use your phone’s built-in screen recorder (in quick settings), turn on audio, do the task, then upload it here.';
+  box.querySelector('.rec-idle').style.display='none';
+  dropText('Upload the recording','Tap to pick it from your photos, or pick a few screenshots.');
+}
 $('#stopbtn').onclick=stopRecording;
 addEventListener('beforeunload',e=>{ if(R.rec){ e.preventDefault(); e.returnValue=''; } });
 
@@ -1069,8 +1138,9 @@ function renderOpps(){
         (x.blockers||[]).map(b=>`<span class="tag">${esc(b)}</span>`).join('')+
       `</div>`+
       (x.why_now?`<p class="why">${esc(x.why_now)}</p>`:'<div class="why"></div>')+
-      `<button class="btn${i?' ghost':''} sm" data-action="select-opportunity" data-opportunity="${esc(x.id)}">`+
-        `${sel&&sel.id===x.id?'Selected':'Automate this'} <span aria-hidden="true">→</span></button>`+
+      `<div class="oppact"><button class="btn${i?' ghost':''} sm" data-action="create-agent" data-agent="${esc(x.id)}">`+
+        `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/></svg>Create agent</button>`+
+      `<button class="linkbtn" data-action="select-opportunity" data-opportunity="${esc(x.id)}">or replay in the browser</button></div>`+
     `</article>`).join(''));
   if(changed){
     el.classList.toggle('stagger',!el._seen);
@@ -1080,7 +1150,69 @@ function renderOpps(){
     el._seen=true;
   }
 }
-$('#oppl').onclick=e=>{ const c=e.target.closest('[data-opportunity]'); if(c) choose(c.dataset.opportunity); };
+$('#oppl').onclick=e=>{ const a=e.target.closest('[data-agent]'); if(a) return openAgent(a.dataset.agent);
+  const c=e.target.closest('[data-opportunity]'); if(c&&e.target.closest('button')) choose(c.dataset.opportunity); };
+
+/* ---------------- agent: built from the recognised process ---------------- */
+const AG={id:null,cursor:0,poll:null,tick:null,t0:0,rows:[]};
+const AGENT_DEFAULT='Log 3 open jobs from https://job-boards.greenhouse.io/gitlab into my sheet: title, location, salary, link.';
+function openAgent(id){
+  const o=opps().find(x=>x.id===id); if(!o) return;
+  sel=o; renderOpps(); AG.id=id;
+  $('#auto').classList.remove('hide');
+  $('#autoTitle').textContent='Agent: '+(o.title||o.id);
+  $('#auto .lede').textContent='A Mistral agent that does this task for you, built from what you showed it. You see every page it opens and every row it saves.';
+  $('#autoBody').innerHTML=`<div class="glass panel" data-agent-panel="${esc(id)}" style="animation:rise .7s var(--ease) both">`+
+    `<p class="muted" style="margin:0 0 16px">Built from your recording: the steps you took and the rules you said out loud. `+
+    `It can open web pages and write rows to a sheet. It cannot log in, apply, buy or send anything.</p>`+
+    `<label class="agreq">What should it do now?<textarea id="agentReq" rows="2">${esc(AGENT_DEFAULT)}</textarea></label>`+
+    `<div class="runbar"><button class="btn" id="agentGo" data-action="run-agent">`+
+      `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l11-7z"/></svg>Run agent</button>`+
+      `<span class="timer" id="agentTimer">0.0s</span></div>`+
+    `<ol class="agentlog" id="agentLog" aria-live="polite"></ol>`+
+    `<div id="agentRows"></div><div id="agentSum"></div>`+
+    `<details class="raw"><summary>What the agent was told</summary><pre class="feedlog" id="agentInstr">Shown when it starts.</pre></details>`+
+    `</div>`;
+  $('#agentGo').onclick=runAgent;
+  $('#auto').scrollIntoView({block:'start'}); mirror();
+}
+async function runAgent(){
+  const req=$('#agentReq').value.trim(); if(!req) return;
+  const r=await post('/api/agent/run',{id:AG.id,request:req}); const j=await r.json();
+  if(!r.ok||j.error){ toast(j.error||'Agent refused',true); return; }
+  Object.assign(AG,{cursor:0,rows:[],t0:Date.now()});
+  $('#agentLog').innerHTML=''; $('#agentRows').innerHTML=''; $('#agentSum').innerHTML=''; $('#agentGo').disabled=true;
+  AG.tick=setInterval(()=>$('#agentTimer').textContent=((Date.now()-AG.t0)/1000).toFixed(1)+'s',100);
+  AG.poll=setInterval(drainAgent,600);
+}
+function agentLine(html){ const li=document.createElement('li'); li.innerHTML=html; $('#agentLog').appendChild(li); }
+function agentRows(){
+  if(!AG.rows.length) return;
+  const cols=[...new Set(AG.rows.flatMap(r=>Object.keys(r)))];
+  $('#agentRows').innerHTML=`<div class="sheet"><table><thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>`+
+    AG.rows.map(r=>`<tr>${cols.map(c=>{ const v=r[c]||''; return `<td>${/^https?:/.test(v)?`<a href="${esc(v)}" target="_blank" rel="noopener">open</a>`:esc(v)}</td>`; }).join('')}</tr>`).join('')+
+    `</tbody></table></div>`;
+}
+async function drainAgent(){
+  const d=await (await fetch(`/api/agent/events?id=${encodeURIComponent(AG.id)}&since=${AG.cursor}`)).json();
+  AG.cursor=d.cursor;
+  for(const e of d.events){
+    if(e.event==='start') $('#agentInstr').textContent=e.instructions||'';
+    if(e.event==='tool'){ let u=e.url||''; try{ const x=new URL(u); u=x.host+x.pathname; }catch(_){}
+      agentLine(`<span class="op">opened</span> ${esc(u)}`); }
+    if(e.event==='row'){ const f=e.fields||{}, key=f.link||f.url||f.title;
+      const i=AG.rows.findIndex(r=>(r.link||r.url||r.title)===key); if(i<0) AG.rows.push(f); else AG.rows[i]=f;
+      agentLine(`<span class="op ok">${e.updated?'fixed row':'saved row'}</span> ${esc(f.title||key||'')}`); agentRows(); }
+    if(e.event==='end'){ stopAgent(); $('#agentTimer').textContent=e.seconds+'s';
+      AG.rows=e.rows||AG.rows; agentRows();
+      $('#agentSum').innerHTML=`<div class="verdict win"><div class="big grad">${plural(AG.rows.length,'row')} saved</div>`+
+        `<div class="sub">${esc(e.summary||'').slice(0,400)}</div></div>`;
+      toast('Agent finished'); mirror(); }
+  }
+  if(!d.running&&!d.events.length&&AG.poll){ stopAgent();
+    if(!$('#agentSum').innerHTML) $('#agentSum').innerHTML='<div class="verdict fail"><div class="big">Agent stopped.</div><div class="sub">Is the API key set on the server? Check the terminal running it.</div></div>'; }
+}
+function stopAgent(){ clearInterval(AG.poll); clearInterval(AG.tick); AG.poll=null; const g=$('#agentGo'); if(g) g.disabled=false; }
 function whenSeen(el,fn){
   const io=new IntersectionObserver(es=>{ if(es.some(x=>x.isIntersecting)){ io.disconnect(); fn(el); } });
   io.observe(el);
@@ -1092,6 +1224,7 @@ async function choose(o){
   sel=o; skill=null; lastRun=null; renderOpps();
   $('#auto').classList.remove('hide');
   $('#autoTitle').textContent=o.title||o.id;
+  $('#auto .lede').textContent='A list of actions, not generated code. Read it, then run it. Anything that saves, sends or pays is marked.';
   $('#autoBody').innerHTML='<div class="empty" role="status">Compiling the automation…</div>';
   $('#auto').scrollIntoView({block:'start'});
   let s=await (await fetch('/api/skill?id='+encodeURIComponent(o.id))).json();

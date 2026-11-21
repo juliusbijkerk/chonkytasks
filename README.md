@@ -92,6 +92,7 @@ screenshots, then runs each stage. To run the stages by hand:
 |---|---|
 | `pipeline/` | the stages above, plus `doctor.py` (setup checks) and `record.sh` |
 | `ui/` | stdlib-only demo server and single-page UI; `/llms.txt` describes the API |
+| `ui/motion.html` | motion playground at `/motion.html`: the pixel cast (one page each at `#cast/<id>`) and an animation shelf |
 | `fixtures/fake-crm.html` | offline target for the worked example |
 | `out/` | generated output, git-ignored except `out/skills/demo_01` |
 | `CONTRACT.md` | data shapes passed between stages |
