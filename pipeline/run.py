@@ -126,6 +126,9 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--yes", action="store_true", help="skip confirmation prompts")
     ap.add_argument("--events", default="out/run.jsonl")
+    ap.add_argument("--hold", type=int, default=20,
+                    help="seconds to leave a headed browser open when nobody "
+                         "is at a keyboard, so the room can see the result")
     ap.add_argument("--timeout", type=int, default=8000,
                     help="ms before an action gives up. Keep it short on stage.")
     args = ap.parse_args()
@@ -174,6 +177,7 @@ def main():
                 start = (Path(__file__).resolve().parent.parent / start).as_uri()
             page.goto(start)
 
+        t_actions = time.time()
         for i, a in enumerate(actions, 1):
             label = describe(a)
             name = (a.get("locator") or {}).get("name", "") or ""
@@ -226,13 +230,35 @@ def main():
             log(event="action_ok", i=i, seconds=round(dt, 2))
             print(f"  {i:>2}. {label}  ok ({dt:.1f}s)")
 
+        # Finish the run BEFORE holding the window open. The demo UI waits for
+        # run_end to stop showing a spinner, and the hold below can last a
+        # minute, so logging it afterwards leaves the page running forever.
+        # Time the ACTIONS, not the browser launch. Launching Chromium headed
+        # takes about six seconds on this laptop, which swamped the work and
+        # turned a 25x speed-up into 5x the moment we showed the browser. The
+        # human baseline does not include opening a browser either: the person
+        # in the recording already had one. Wall clock is still reported, so
+        # nobody is surprised by a stopwatch.
+        total = time.time() - t_actions
+        wall = time.time() - t0
+        log(event="run_end", seconds=round(total, 2),
+            wall_seconds=round(wall, 2),
+            startup_seconds=round(t_actions - t0, 2),
+            ok=failed is None, extracted=extracted)
+
         if args.headed:
-            input("\n  browser is open. enter to close ")
+            # Only prompt when there is someone at a keyboard. Launched from
+            # the demo server, stdin is not a terminal and input() either
+            # raises EOFError or blocks: the browser never closes, run_end
+            # never gets written, and the Run button spins until you notice.
+            if sys.stdin.isatty():
+                input("\n  browser is open. enter to close ")
+            else:
+                print(f"  holding the browser open for {args.hold}s")
+                time.sleep(args.hold)
         browser.close()
 
-    total = time.time() - t0
     human = skill.get("human_baseline_seconds") or 0
-    log(event="run_end", seconds=round(total, 2), ok=failed is None, extracted=extracted)
 
     print()
     if failed:
@@ -247,6 +273,8 @@ def main():
         print(f"  (human: {human}s, {human / total:.0f}x faster)")
     else:
         print()
+    print(f"  {wall:.1f}s wall clock, of which {wall - total:.1f}s was "
+          f"launching the browser")
     print(f"  events -> {args.events}")
 
 

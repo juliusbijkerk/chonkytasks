@@ -29,7 +29,7 @@ recording.mp4
   → vision pass                  (what happened each frame)
   → rank loops                   (measured minutes, not guesses)
   → compile skill.json           (data, never code)
-  → live replay in browser       (33s → 2.34s)
+  → live replay in browser       (33s → 1-2s)
 ```
 
 ---
@@ -44,7 +44,8 @@ The model proposed the loop; a Python tool measured it.
 | Recording | **5:53**, 11 named parts, 54 real actions |
 | The loop | seen **2x**, median **33.0s** per pass |
 | Measured in recording | **1.1 min** of that loop |
-| Live replay | **2.4s** (14x faster than the human median) |
+| Live replay | **1-2s** of actions, against a 33s human median |
+| Wall clock | about **3s**, because launching a browser costs 2.5s |
 
 **There is no monthly figure on this slide, and that is the point.**
 
@@ -101,7 +102,7 @@ The compiler watched the recording and decided the Location filter was a
 1. Play 60s of real screen recording
 2. Show the loops it found, ranked by measured time
 3. Click **Run** — the agent drives the live public board
-4. "33 seconds becomes 2.4"
+4. "33 seconds becomes one or two"
 5. Then ask it for an ambiguous title and watch it refuse
 
 **Say this at step 3, before anyone notices it:** the recording spans LinkedIn
