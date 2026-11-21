@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><title>Acme CRM</title>
+<style>body{font:15px system-ui;max-width:420px;margin:60px auto}
+label{display:block;margin:14px 0 4px}input{width:100%;padding:8px}
+button{margin-top:18px;padding:9px 16px}#done{display:none;margin-top:20px;color:#137333}</style>
+<h1>New contact</h1>
+<form onsubmit="event.preventDefault();document.getElementById('done').style.display='block';
+document.getElementById('ref').textContent='CRM-'+Math.floor(Math.random()*9000+1000)">
+<label for="c">Company name</label><input id="c">
+<label for="e">Email</label><input id="e">
+<button type="submit">Save contact</button></form>
+<div id="done">Contact saved. Reference <span id="ref"></span></div>

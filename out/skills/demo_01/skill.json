@@ -1,0 +1,18 @@
+{
+  "id": "demo_01",
+  "name": "Add a contact to the CRM",
+  "start_url": "fixtures/fake-crm.html",
+  "params": [
+    {"name": "company", "kind": "company", "example": "Acme Ltd"},
+    {"name": "email", "kind": "email", "example": "a@acme.test"}
+  ],
+  "actions": [
+    {"op": "fill", "locator": {"by": "label", "value": "Company name"}, "param": "company"},
+    {"op": "fill", "locator": {"by": "label", "value": "Email"}, "param": "email"},
+    {"op": "click", "locator": {"by": "role", "role": "button", "name": "Save contact"}, "confirm": true},
+    {"op": "wait_for", "locator": {"by": "text", "value": "Contact saved"}, "timeout_ms": 5000},
+    {"op": "extract", "locator": {"by": "css", "value": "#ref"}, "as": "reference"},
+    {"op": "assert_text", "locator": {"by": "css", "value": "#done"}, "text": "Contact saved"}
+  ],
+  "human_baseline_seconds": 95
+}

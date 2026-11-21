@@ -1,0 +1,16 @@
+.DS_Store
+__pycache__/
+.venv/
+
+# personal notes (venue wifi, pitch notes) and reference images: not for the repo
+NOTES*
+
+# machine-specific
+out/env.sh
+
+# Pipeline output is generated from screen recordings and can show anything
+# that was on screen. Keep all of it local, except the worked demo skill.
+out/*
+!out/skills/
+out/skills/*
+!out/skills/demo_01/
