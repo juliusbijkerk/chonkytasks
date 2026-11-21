@@ -107,7 +107,10 @@ STAGES = {
     "transcribe":    lambda v: ["pipeline/transcribe.py", "out/recording.wav"],
     "observe":       lambda v: ["pipeline/observe.py"],
     "describe":      lambda v: ["pipeline/describe.py"],
-    "rank":          lambda v: ["pipeline/rank.py"],
+    # The agent ranker has the honest-loop fixes (no non-event loops, no monthly
+    # figure from a too-short recording). rank.py stays as the fallback.
+    "rank":          lambda v: ["bash", "-c", f'"{ROOT}/pipeline/rank_agent.py" || '
+                                f'{{ echo "agent ranker failed, falling back to rank.py"; exec "{ROOT}/pipeline/rank.py"; }}'],
 }
 
 
@@ -332,6 +335,14 @@ def pump(name, job):
                    + (f" (exit {job['exit']})" if job["exit"] else ""))
 
 
+def stage_env():
+    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+    # the Agents SDK (rank_agent.py) reads MISTRAL_CLIENT_API_KEY first
+    if env.get("MISTRAL_API_KEY"):
+        env.setdefault("MISTRAL_CLIENT_API_KEY", env["MISTRAL_API_KEY"])
+    return env
+
+
 def start_job(name, video=None):
     if name in running_names():
         return False, f"{name} is already running"
@@ -342,7 +353,7 @@ def start_job(name, video=None):
     job = {"started": time.time(), "ended": 0, "exit": None,
            "proc": subprocess.Popen(cmd, cwd=str(ROOT), stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT,
-                                    env={**os.environ, "PYTHONUNBUFFERED": "1"})}
+                                    env=stage_env())}
     JOBS[name] = job
     threading.Thread(target=pump, args=(name, job), daemon=True).start()
     return True, None
