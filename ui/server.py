@@ -42,6 +42,7 @@ def running_names():
 def busy():
     return PIPE["active"] or bool(running_names())
 RUN = {"proc": None, "id": None}
+AGENT = {"proc": None, "id": None}   # a Mistral agent built from a recognised process
 
 VIDEO_EXT = (".mp4", ".webm", ".mov", ".mkv", ".m4v")
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".heic")
@@ -142,6 +143,7 @@ API = [
     {"method": "POST", "path": "/api/pipeline", "body": '{"stages": [...]} (optional)', "does": "runs those stages (default: everything not done), in parallel where they do not depend on each other"},
     {"method": "POST", "path": "/api/stage", "body": '{"name": "<stage>"}', "does": "runs one pipeline stage; 409 if one is already running"},
     {"method": "POST", "path": "/api/compile", "body": '{"id": "<opportunity id>"}', "does": "compiles an opportunity into a skill (blocking, up to 300s)"},
+    {"method": "POST", "path": "/api/agent/run", "body": '{"id": "<opportunity id>", "request": "what to do now"}', "does": "builds a Mistral agent from the recognised process (steps + spoken rules) and runs it; poll /api/agent/events?id=<id>"},
     {"method": "POST", "path": "/api/run", "body": '{"id": "<skill id>", "params": {...}, "headed": false}', "does": "replays the skill; poll /api/events"},
 ]
 
@@ -360,7 +362,25 @@ def llms_txt():
           "", "## In the browser", "",
           "The page exposes `window.chonkytasks` (state(), runStage(name), runAll(), select(id), run({params, headed}), startRecording(), stopRecording()) "
           "and mirrors its state into `<script type=application/json id=agent-state>`. "
-          "Every control carries a `data-action` attribute.", ""]
+          "Every control carries a `data-action` attribute.", "",
+          "## Motion playground", "",
+          "[/motion.html](/motion.html) is a separate page of animations the team likes, in the same palettes. "
+          "Source: `ui/motion.html`, one file, no build step. It has two parts:", "",
+          "- The cast: pixel characters in the style of Chonk, the logo cat. Each has a personality, habits and lines, "
+          "and its own page at `/motion.html#cast/<id>`. They are defined in the `CAST` array; each one is a pixel map "
+          "(digits 0-4 are the palette bands top to bottom, `.` is empty, `p` is pink), plus named parts that animate "
+          "and eyes whose empty pixel moves toward the pointer. Add a character by adding an entry there.",
+          "- The shelf: 28 small CSS/JS animations, defined in the `T` array.", "",
+          "- [Chonk, the boss](/motion.html#cast/chonk)",
+          "- [Mochi, the shy one](/motion.html#cast/mochi)",
+          "- [Bun, the overachiever](/motion.html#cast/bun)",
+          "- [Sir Snooze, the realist](/motion.html#cast/snooze)",
+          "- [Pip, the worrier](/motion.html#cast/pip)",
+          "- [Grumbo, the critic](/motion.html#cast/grumbo)",
+          "- [Byte, the automator](/motion.html#cast/byte)",
+          "- [Octavia, the multitasker](/motion.html#cast/octavia)",
+          "- [Biscuit, the cheerleader](/motion.html#cast/biscuit)",
+          ""]
     return "\n".join(L)
 
 
@@ -530,6 +550,21 @@ class H(SimpleHTTPRequestHandler):
                 "narration": (OUT / "narration.txt").read_text()[:4000]
                              if (OUT / "narration.txt").exists() else "",
             })
+
+        if u.path == "/api/agent/events":
+            aid = re.sub(r"[^\w-]", "", q.get("id", [""])[0])
+            since = int(q.get("since", ["0"])[0])
+            f = OUT / "agents" / f"{aid}.jsonl"
+            lines = f.read_text().splitlines() if f.exists() else []
+            evs = []
+            for ln in lines[since:]:
+                try:
+                    evs.append(json.loads(ln))
+                except Exception:
+                    pass
+            pr = AGENT["proc"]
+            return self._json({"events": evs, "cursor": len(lines),
+                               "running": pr is not None and pr.poll() is None and AGENT["id"] == aid})
 
         if u.path == "/api/process":
             return self._json(process())
@@ -749,6 +784,25 @@ class H(SimpleHTTPRequestHandler):
             want = [k for k in PIPELINE if k in want]
             ok, err = start_pipeline(want)
             return self._json({"ok": ok, "error": err, "stages": want}, 200 if ok else 409)
+
+        if u.path == "/api/agent/run":
+            # Build a Mistral agent from the recognised process and let it do
+            # the task now. It can read pages and write rows; nothing else.
+            n = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(n) or b"{}")
+            aid = re.sub(r"[^\w-]", "", str(body.get("id") or "process"))
+            req = str(body.get("request") or "").strip()
+            if not req:
+                return self._json({"error": "tell the agent what to do"}, 400)
+            pr = AGENT["proc"]
+            if pr is not None and pr.poll() is None:
+                return self._json({"error": "an agent is already running"}, 409)
+            (OUT / "agents").mkdir(parents=True, exist_ok=True)
+            log = (OUT / "agents" / f"{aid}.jsonl").open("w")
+            AGENT.update(id=aid, proc=subprocess.Popen(
+                [str(ROOT / "pipeline" / "make_agent.py"), aid if aid != "process" else "", req],
+                cwd=str(ROOT), stdout=log, stderr=subprocess.DEVNULL, env=stage_env()))
+            return self._json({"ok": True, "id": aid})
 
         if u.path == "/api/run":
             n = int(self.headers.get("Content-Length", 0))
