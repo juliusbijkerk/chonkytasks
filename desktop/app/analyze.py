@@ -6,14 +6,14 @@ from pathlib import Path
 
 from .models import Observations, Proposal
 
-from .completion import complete
-from . import privacy_review
+from .completion import MISTRAL_MODEL_ID, complete
+from . import mac_automation, privacy_review
 
 
 def get_model() -> str:
-    model = os.getenv("OPENROUTER_MODEL", "mistralai/mistral-large-4-0").strip()
-    if not model.startswith("mistralai/"):
-        raise ValueError("Only Mistral models are allowed. Set OPENROUTER_MODEL to a mistralai/ model.")
+    model = os.getenv("MISTRAL_MODEL", "mistral-large-4-0").strip()
+    if not MISTRAL_MODEL_ID.fullmatch(model):
+        raise ValueError("Only Mistral models are allowed. Set MISTRAL_MODEL to a Mistral Studio model ID.")
     return model
 
 
@@ -87,6 +87,9 @@ async def analyze(folder: Path, job: dict, update):
     model = get_model()
     usage = []
     package = privacy_review.stored(folder, job, model)
+    key = await mac_automation.api_key()
+    if not key:
+        raise ValueError("Connect Mistral in Connections to analyze reviewed screenshots.")
     frames = list(package.frames)
     gaps = [frame['timestamp'] for frame in package.excluded]
     batches = [frames[i:i + 12] for i in range(0, len(frames), 12)]
@@ -134,14 +137,14 @@ The sample interval is {job['sample_interval']} seconds; exact clicks are not ca
         for frame in batch:
             content.append({"type": "text", "text": f"Frame {frame['id']} at {frame['timestamp']:.3f} seconds"})
             encoded = base64.b64encode(package.images[frame['id']]).decode()
-            content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}})
+            content.append({"type": "image_url", "image_url": f"data:image/jpeg;base64,{encoded}"})
         # Give the model one repair attempt with the same images when coverage is
         # incomplete. Never silently accept missing or overlapping screenshot ranges.
         for coverage_attempt in range(2):
             if coverage_attempt:
                 update(message=f"Checking screenshot coverage · batch {index + 1} of {len(batches)}")
             observed = await complete(content, Observations, usage, model,
-                                      on_progress=lambda state: update(model_request=state))
+                                      on_progress=lambda state: update(model_request=state), key=key)
             try:
                 batch_steps = validate_step_coverage([s.model_dump() for s in observed.steps], batch, gaps)
                 break
@@ -185,13 +188,13 @@ Frame inventory: {json.dumps([{'id': f['id'], 'timestamp': f['timestamp']} for f
 Observed activity: {json.dumps(steps)}
 Observation limitations: {json.dumps(limitations)}"""
     proposal = await complete(prompt, Proposal, usage, model,
-                              on_progress=lambda state: update(model_request=state))
+                              on_progress=lambda state: update(model_request=state), key=key)
     update(stage="validating", progress=94, message="Checking the report and screenshot references")
     report = finalize(proposal, steps, frames)
     report["limitations"] = list(dict.fromkeys(report["limitations"] + limitations + [
         "Analysis uses sampled screenshots, not mouse or keyboard events. Short transitions can be missed.",
         "Durations are elapsed spans between sampled frames, not measured active work or verified savings.",
-        "Audio is not analyzed. All AI interpretation uses Mistral through OpenRouter."]))
+        "Audio is not analyzed. All AI interpretation uses the Mistral API."]))
     if job["metadata"]["duration"] < 60:
         report["limitations"].insert(0, "This recording is under one minute. Repetition and potential savings need validation with a longer recording.")
     report["model"] = model

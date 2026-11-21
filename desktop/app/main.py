@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
-import os
 from pathlib import Path
 from typing import Literal
 import re
@@ -105,14 +104,14 @@ async def local_requests(request: Request, call_next):
     return response
 
 
-def ensure_provider():
-    if not os.getenv("OPENROUTER_API_KEY", "").strip():
-        raise HTTPException(503, "Add OPENROUTER_API_KEY to .env and restart the app.")
+async def ensure_provider():
     try:
         get_model()
+        configured = await mac_automation.key_configured()
     except ValueError as error:
-        raise HTTPException(503, str(error))
-
+        raise HTTPException(503, str(error)) from None
+    if not configured:
+        raise HTTPException(503, "Connect Mistral in Connections to analyze reviewed screenshots.")
 
 def ensure_ready():
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
@@ -191,12 +190,13 @@ async def process(job, *, for_analysis=False):
 
 @app.get("/api/health")
 async def health():
+    model, configured, error = "Invalid model", False, None
     try:
         model = get_model()
-        error = None
+        configured = await mac_automation.key_configured()
     except ValueError as exc:
-        model, error = "Invalid model", str(exc)
-    return {"configured": bool(os.getenv("OPENROUTER_API_KEY", "").strip()), "model": model,
+        error = str(exc)
+    return {"configured": configured, "model": model,
             "ffmpeg": bool(shutil.which("ffmpeg") and shutil.which("ffprobe")), "error": error}
 
 
@@ -622,10 +622,14 @@ async def preview_evidence(job_id: str, selection: EvidenceSelection, exact: boo
 @app.post('/api/jobs/{job_id}/privacy/approve', status_code=202)
 async def approve_evidence(job_id: str, approval: EvidenceApproval):
     job = get_job(job_id)
+    if check_evidence_selection(job, approval).revision != approval.revision:
+        raise HTTPException(409, 'The evidence changed. Review the current selection again.')
+    await ensure_provider()
+    # Check again in the same event-loop turn as queuing, after Keychain returns.
+    job = get_job(job_id)
     packet = check_evidence_selection(job, approval)
     if packet.revision != approval.revision:
         raise HTTPException(409, 'The evidence changed. Review the current selection again.')
-    ensure_provider()
     ensure_ready()
     job.update(privacy_approval=packet.selection(), status='queued', stage='queued', progress=25,
                message='Reviewed evidence queued for analysis')
@@ -717,7 +721,6 @@ async def retry(job_id: str):
     if job["status"] != "failed" and not (job["status"] == "review" and not job.get('redaction_ready')):
         raise HTTPException(409, "This recording is not waiting for a retry.")
     if job.get("privacy_approval"):
-        ensure_provider()
         try:
             privacy_review.stored(DATA / job_id, job, get_model())
         except ValueError:
@@ -725,6 +728,9 @@ async def retry(job_id: str):
                        message='Review the recording again before sending', privacy_approval=None)
             persist(job)
             return job
+        await ensure_provider()
+        if get_job(job_id)['status'] != 'failed':
+            raise HTTPException(409, "This recording is not waiting for a retry.")
         job.update(status='queued', stage='queued', progress=25, message='Reviewed evidence queued for retry')
         launch(job, for_analysis=True)
         return job
