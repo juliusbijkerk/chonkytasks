@@ -11,7 +11,8 @@
 Sends frames in small batches so one bad batch does not lose the run, and so
 you can watch it stream in during the demo.
 """
-import argparse, json, base64, os, sys, time
+import argparse, json, base64, os, re, sys, time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import httpx
 
@@ -60,8 +61,40 @@ def b64(p):
     return base64.b64encode(Path(p).read_bytes()).decode()
 
 
+TS = re.compile(r"^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$")
+
+
+def parse_narration(text):
+    """[mm:ss.xx] line -> [(seconds, line)]. Untimed text is ignored, because
+    narration we cannot place is narration we cannot trust."""
+    out = []
+    for ln in (text or "").splitlines():
+        m = TS.match(ln.strip())
+        if m:
+            out.append((int(m.group(1)) * 60 + float(m.group(2)), m.group(3).strip()))
+    return out
+
+
+def narration_window(lines, start, end, pad=1.5):
+    """Only what was said while these frames were on screen.
+
+    Handing the whole transcript to every call was the bug: the model then
+    attaches any line to any step, so a sentence from minute two shows up as
+    the reason for a click in minute one. Worse, when the mic picks up the
+    room rather than the person, every single step gets decorated with a
+    stranger's conversation and it reads like evidence.
+    """
+    got = [t for ts, t in lines if start - pad <= ts <= end + pad and t]
+    return "\n".join(got)
+
+
 def call(client, key, frames, narration, seg=None):
-    head = "Narration transcript for this window:\n" + (narration or "(none)")
+    head = ("What the person said while these exact frames were on screen:\n"
+            + (narration or "(they said nothing here)")
+            + "\n\nUse a line as a step's narration ONLY if it plainly explains "
+              "that step. Background chatter, other people talking, and remarks "
+              "about something else all get narration: null. A wrong narration "
+              "is worse than none, because it reads as the person's reasoning.")
     if seg:
         head = (f"This is one segment of the recording: {seg['id']}, "
                 f"{seg['start']}s to {seg['end']}s. The person stayed on one "
@@ -94,7 +127,10 @@ def main():
         sys.exit("MISTRAL_API_KEY is not set. Make one at console.mistral.ai/api-keys")
 
     frames = json.loads(Path(args.manifest).read_text())
-    narration = Path(args.narration).read_text() if Path(args.narration).exists() else None
+    narration_lines = parse_narration(
+        Path(args.narration).read_text() if Path(args.narration).exists() else "")
+    if narration_lines:
+        print(f"  narration: {len(narration_lines)} timed lines")
 
     by_file = {f["file"]: f for f in frames}
     segs = []
@@ -114,20 +150,32 @@ def main():
         for i in range(0, len(frames), args.batch):
             units.append((None, frames[i:i + args.batch]))
 
+    # Units are independent, so several go to the API at once. Results are
+    # collected here on the main thread, so the file writes never race.
+    def work(n, sg, chunk):
+        t0 = time.time()
+        lo = min(f["t"] for f in chunk)
+        hi = max(f["t"] for f in chunk)
+        window = narration_window(narration_lines, lo, hi)
+        return call(client, key, chunk, window, sg), time.time() - t0
+
     steps = []
-    with httpx.Client(timeout=180) as client:
-        for n, (sg, chunk) in enumerate(units):
-            t0 = time.time()
+    workers = max(1, int(os.environ.get("MISTRAL_CONCURRENCY", "4")))
+    print(f"  {len(units)} calls, {workers} at a time")
+    with httpx.Client(timeout=180) as client, ThreadPoolExecutor(workers) as pool:
+        futs = {pool.submit(work, n, sg, chunk): (n, sg) for n, (sg, chunk) in enumerate(units)}
+        for fut in as_completed(futs):
+            n, sg = futs[fut]
             tag = sg["id"] if sg else f"batch_{n}"
             try:
-                got = call(client, key, chunk, narration, sg)
+                got, dt = fut.result()
             except Exception as e:
                 print(f"  {tag} failed, skipping: {e}", file=sys.stderr)
                 continue
             for st in got:
                 st["segment"] = sg["id"] if sg else None
             steps.extend(got)
-            print(f"  {tag}: {len(got)} steps ({time.time() - t0:.1f}s)")
+            print(f"  {tag}: {len(got)} steps ({dt:.1f}s)")
             # save as we go, so the UI can show steps while the rest are read
             Path(args.out).write_text(json.dumps(
                 sorted(steps, key=lambda s: s.get("t", 0)), indent=2))
@@ -135,6 +183,8 @@ def main():
     steps.sort(key=lambda s: s.get("t", 0))
     Path(args.out).write_text(json.dumps(steps, indent=2))
     print(f"\n{len(steps)} steps -> {args.out}")
+    if units and not steps:
+        sys.exit("Every call failed, so there are no steps. See the errors above.")
 
 
 if __name__ == "__main__":

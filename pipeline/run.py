@@ -11,11 +11,39 @@
 
 Writes out/run.jsonl as it goes so the demo UI can tail it.
 """
-import argparse, json, sys, time
+import argparse, json, re, sys, time
 from pathlib import Path
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 DESTRUCTIVE = {"submit", "send", "save", "delete", "pay", "confirm", "buy", "remove"}
+
+TPL = re.compile(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}")
+
+
+def fill_template(text, values):
+    """Substitute {{name}} from params and anything extracted so far.
+
+    The compiler emits these all over: start_url is "{{job_url}}", an
+    assert_text checks "{{job_title}}" against a heading it extracted two
+    steps earlier. Without this the runner navigated to the literal string
+    "{{job_url}}" and asserted on literal braces, which fails in a way that
+    looks like the page is wrong rather than the runner.
+    """
+    if not isinstance(text, str):
+        return text
+    missing = []
+
+    def sub(m):
+        k = m.group(1)
+        if k in values and values[k] is not None:
+            return str(values[k])
+        missing.append(k)
+        return m.group(0)
+
+    out = TPL.sub(sub, text)
+    if missing:
+        raise KeyError("nothing to fill " + ", ".join("{{%s}}" % k for k in missing))
+    return out
 
 
 def locate(page, L):
@@ -95,6 +123,7 @@ def main():
         human_baseline_seconds=skill.get("human_baseline_seconds"))
 
     extracted, failed = {}, None
+    values = dict(params)
     t0 = time.time()
 
     with sync_playwright() as pw:
@@ -103,6 +132,7 @@ def main():
         page.set_default_timeout(args.timeout)
         start = skill.get("start_url")
         if start:
+            start = fill_template(start, values)   # start_url is often "{{job_url}}"
             if "://" not in start:  # repo-relative path, e.g. fixtures/fake-crm.html
                 start = (Path(__file__).resolve().parent.parent / start).as_uri()
             page.goto(start)
@@ -124,9 +154,10 @@ def main():
             try:
                 op = a["op"]
                 if op == "goto":
-                    page.goto(a["url"])
+                    page.goto(fill_template(a["url"], values))
                 elif op == "fill":
-                    val = params[a["param"]] if a.get("param") else a.get("value", "")
+                    val = (params[a["param"]] if a.get("param")
+                           else fill_template(a.get("value", ""), values))
                     locate(page, a["locator"]).fill(val)
                 elif op == "click":
                     locate(page, a["locator"]).click()
@@ -137,11 +168,14 @@ def main():
                 elif op == "wait_for":
                     locate(page, a["locator"]).wait_for(timeout=a.get("timeout_ms", 10000))
                 elif op == "extract":
-                    extracted[a["as"]] = locate(page, a["locator"]).inner_text()
+                    got = locate(page, a["locator"]).inner_text().strip()
+                    extracted[a["as"]] = got
+                    values[a["as"]] = got
                 elif op == "assert_text":
+                    want = fill_template(a["text"], values)
                     got = locate(page, a["locator"]).inner_text()
-                    if a["text"].lower() not in got.lower():
-                        raise AssertionError(f"expected {a['text']!r}, page said {got[:80]!r}")
+                    if want.lower() not in got.lower():
+                        raise AssertionError(f"expected {want!r}, page said {got[:80]!r}")
                 else:
                     raise ValueError(f"unknown op {op}")
             except (PWTimeout, AssertionError, Exception) as e:
