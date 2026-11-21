@@ -16,7 +16,7 @@ from pathlib import Path
 from PIL import Image
 
 
-def ahash(path, size=12):
+def ahash(path, size=24):
     """Average hash. Small, fast, good enough to spot 'nothing changed'."""
     img = Image.open(path).convert("L").resize((size, size), Image.LANCZOS)
     px = list(img.tobytes())
@@ -33,8 +33,14 @@ def main():
     ap.add_argument("video")
     ap.add_argument("--every", type=float, default=3.0, help="seconds between frames")
     ap.add_argument("--max-width", type=int, default=1280)
-    ap.add_argument("--threshold", type=int, default=8,
-                    help="hamming distance below which a frame counts as unchanged")
+    ap.add_argument("--threshold", type=int, default=10,
+                    help="hamming distance below which a frame counts as unchanged. "
+                         "Over a 24x24 hash this is ~1.7%% of the image. A coarse "
+                         "hash with a loose threshold throws away real work: typing "
+                         "into one field changes a tiny fraction of a 1440p screen, "
+                         "and at 12x12/8 that read as 'nothing happened'. A 2:26 "
+                         "recording went 72 frames -> 12 kept, and the vision pass "
+                         "duly reported nine 'waited' steps.")
     ap.add_argument("--out", default="out/frames")
     args = ap.parse_args()
 

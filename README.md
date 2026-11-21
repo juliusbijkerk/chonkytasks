@@ -8,6 +8,25 @@ forgot, and shows whether it is worth automating.
 
 Built in a day at the Mistral hackathon, London, 21 November 2026.
 
+## Demo (5 minutes, live)
+
+1. Play 60s of a real screen recording of repetitive work (screen + voice).
+2. Show the parts it was split into, each with a human label ("Logging the price in Notes").
+3. Show the ranked loops with **measured** minutes vs projected hours/month — the honest number first.
+4. Click **Run**: the compiled `skill.json` replays live in a browser. 95 seconds becomes ~1 second.
+5. The pitch line: *"Prompting automates what you remember. Recording finds what you forgot — and proves it's worth the money."*
+
+Demo video: *(link to submission video)*
+
+## Mistral stack used
+
+| Where | What | Bonus track |
+|---|---|---|
+| `pipeline/transcribe.py` | Voxtral (`voxtral-mini-latest`) turns the narrated recording into timestamped text — voice is the only source of *why* | Best use of Voxtral (£250) |
+| `pipeline/observe.py`, `rank.py`, `compile.py` | Mistral Large (vision + reasoning): frames → steps → ranked loops → `skill.json` | Track_01 |
+| Studio Agent "Workday Analyst" | rank/compile run as a Mistral Agent via the Agents/Conversations API (`pipeline/agent.py`) | Agents & Workflows (£500) |
+| `pipeline/run.py` | fixed Playwright interpreter over the agent's JSON — the model never writes code | — |
+
 ## How it works
 
 ```

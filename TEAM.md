@@ -472,3 +472,127 @@ of error as an invented step.
 `hands_back` should almost always be a ranked list the person chooses from.
 "It decided for you" is only honest if the recording showed the person deciding
 without deliberating, which it usually will not.
+
+---
+
+## First real recording: what broke, what it proved
+
+A 2:26 screen recording of the job-hunt workflow (LinkedIn alerts -> email ->
+job detail -> spreadsheet). The whole chain ran. Three problems, two of them
+ours and now fixed.
+
+### 1. The mic recorded the room, not the person
+
+The transcript came back as a stranger's conversation in Portuguese: *"Então
+assim, vamos lá"*, *"100 quilos"*. At a hackathon with 237 people, a laptop mic
+picks up the table, not you.
+
+Two consequences:
+
+- **Useless narration.** The whole point of voice is the *why*, and we captured
+  somebody else's why.
+- **A privacy problem.** We recorded people who did not consent and sent it to
+  an API. `out/takes/132117-recording.wav` should be deleted, not kept as a
+  test fixture.
+
+For the next take: headset mic, or step outside, or skip narration entirely and
+let the vision pass stand on its own. A missing narration is fine. A wrong one
+is not.
+
+### 2. The whole transcript was handed to every call (ours, fixed)
+
+`observe.py` passed the entire transcript to every segment, so the model
+attached any line to any step. Every step came back decorated with a random
+sentence from the room, reading exactly like the person's own reasoning.
+
+Now each call gets **only the lines spoken while its frames were on screen**
+(±1.5s), parsed from Voxtral's timestamps, plus an instruction that background
+chatter gets `narration: null`.
+
+Result on the same audio: **0 of 44 steps picked up the chatter.** The model
+correctly refused all of it.
+
+### 3. The dedupe was throwing away the work (ours, fixed)
+
+72 frames sampled, **60 dropped** as near-duplicates, 12 kept. The vision pass
+then reported nine `waited` steps, because that is honestly what 12 scattered
+frames show.
+
+The hash was 12x12 with a threshold of 8. Typing into one cell changes a tiny
+fraction of a 1440p screen, and at that resolution it reads as "nothing
+happened". Now 24x24 with a threshold of 10.
+
+Same recording, after:
+
+| | before | after |
+|---|---|---|
+| frames kept | 12 of 72 | **41 of 72** |
+| steps found | 12 | **44** |
+| real actions | 3 | **19** (typed, switched app, scrolled) |
+| steps with chatter attached | 12 | **0** |
+
+### What it found
+
+Five loops, and they are recognisably the actual workflow:
+
+```
+opp_02  Switch to the tracking spreadsheet and type into a cell      seen 3x  full
+opp_01  Open and scroll through a job posting on LinkedIn            seen 2x  partial
+opp_03  Follow the apply link from LinkedIn to the careers page      seen 3x  full
+opp_04  Context-switch between Chrome and Sheets while logging       seen 5x  full
+```
+
+The guard did its job: 2.3 minutes observed, so every per-month figure is
+flagged unreliable and the UI says so. **Record 10 to 15 minutes** and those
+numbers become worth showing.
+
+---
+
+## compile.py works. The runner had a hole.
+
+First ever run, on the real `opp_03`. It produced a sensible skill, and the
+scope block is the best thing in the output:
+
+```json
+"budget": 50,
+"budget_reason": "Observed only 3 occurrences in a short manual session due to
+                  fatigue; a machine can process 50+ without degradation",
+"bar": "not stated in the recording"
+```
+
+It took the fatigue argument on its own, and it refused to invent a bar when the
+narration gave it nothing. That is the behaviour we asked for.
+
+### The hole: no template substitution
+
+The compiler emits `{{...}}` everywhere. `start_url` was `"{{linkedin_job_url}}"`
+and an `assert_text` checked `"{{job_title}}"` against a heading extracted two
+steps earlier. The runner had no substitution, so it navigated to the literal
+string `{{linkedin_job_url}}` and asserted on literal braces. It fails looking
+like the page is wrong rather than the runner.
+
+Fixed, and proven on the local fixture with all three forms at once:
+
+- `{{page_url}}` as `start_url`, from a param
+- `hi@{{company}}.test` as a fill value, from a param
+- `{{reference}}` in an assert, from a value **extracted two steps earlier**
+
+```
+5 actions, done in 0.9s (human: 60s, 64x faster)
+```
+
+A note for whoever edits `pipeline/run.py` next: my first patch to `start_url`
+silently did not apply, because the block had already been changed to support
+repo-relative paths and my search text no longer matched. The script still ran,
+just without substitution. **Check your edit landed, do not assume it did.**
+
+## Why opp_03 will not run live
+
+`Follow LinkedIn apply link to careers page` needs an authenticated LinkedIn
+session, and LinkedIn blocks automated browsers hard. The compiler even flagged
+it: `assumes_authenticated_session`.
+
+For the first end-to-end "it recorded, it found it, it ran it", the loop needs a
+target with **no login and no bot wall**. From the site probe, that is Dunelm or
+IKEA. A 60 second recording of three price lookups is enough: three passes, one
+loop, one skill, one live replay.
