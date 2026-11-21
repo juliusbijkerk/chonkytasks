@@ -277,8 +277,15 @@ h2{font-size:32px;margin:0 0 10px;letter-spacing:-.035em;font-weight:680;line-he
 /* ---------- process ---------- */
 .proc{position:relative}
 .pstep{display:block;padding:0;margin-bottom:8px;transition:border-color .3s}
-.pstep>summary{list-style:none;display:grid;grid-template-columns:32px minmax(0,1fr) auto 14px;gap:14px;
-  align-items:center;padding:11px 16px 11px 12px;cursor:pointer;border-radius:inherit}
+.pstep>summary{list-style:none;display:grid;grid-template-columns:32px 136px minmax(0,1fr) auto 14px;gap:16px;
+  align-items:center;padding:10px 16px 10px 12px;cursor:pointer;border-radius:inherit}
+.sshot{width:136px;aspect-ratio:16/10;object-fit:cover;object-position:top left;border-radius:8px;display:block;
+  background:var(--line);box-shadow:0 0 0 1px var(--line);transition:transform .4s var(--ease)}
+.pstep>summary:hover .sshot{transform:scale(1.04)}
+.same{font-size:11.5px;color:var(--faint);text-align:center;border:1.5px dashed var(--line);border-radius:8px;padding:5px 0}
+.ptx{min-width:0;display:flex;flex-direction:column;gap:2px}
+.pd1{font-size:13px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pstep[open] .pd1{display:none}
 .pstep>summary::-webkit-details-marker{display:none}
 .pstep>summary:hover{background:var(--glass2)}
 .pstep[open]{border-color:color-mix(in srgb,var(--a1) 35%,transparent)}
@@ -287,8 +294,8 @@ h2{font-size:32px;margin:0 0 10px;letter-spacing:-.035em;font-weight:680;line-he
 .pstep .pm{margin:0;justify-content:flex-end}
 .pstep .chev{width:14px;height:14px;color:var(--faint);transition:transform .3s var(--ease)}
 .pstep[open] .chev{transform:rotate(90deg)}
-.pbody{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:18px;padding:2px 18px 16px 58px;animation:rise .4s var(--ease)}
-.pbody .pthumb{width:240px}
+.pbody{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;padding:4px 18px 16px 58px;animation:rise .4s var(--ease)}
+.pbody .pthumb{width:340px}
 .pbody .pd{margin:0}
 .pbody .quote{margin:10px 0 0}
 .pbody .rawlist{margin-top:10px}
@@ -514,7 +521,7 @@ footer .sp{margin-right:auto}
   .quote{margin-left:12px}
   .seg{grid-template-columns:1fr;gap:12px;padding:8px 8px 14px} .seg .m{padding:0 6px}
   .tl li{padding-left:42px} .tl::before{left:14px} .tl .dot{left:0;top:12px;width:30px;height:30px}
-  .pstep>summary{grid-template-columns:28px minmax(0,1fr) 14px;gap:10px} .pstep .pm{display:none}
+  .pstep>summary{grid-template-columns:26px 84px minmax(0,1fr) 14px;gap:10px} .pstep .pm{display:none} .sshot{width:84px} .same{font-size:10.5px}
   .pbody{grid-template-columns:1fr;padding:0 14px 14px} .pbody .pthumb{width:100%}
   .pbody .rawlist .st{grid-template-columns:40px minmax(0,1fr)}
   details.raw .st{grid-template-columns:40px minmax(0,1fr)} .feed{padding:16px}
@@ -937,9 +944,12 @@ const CHEV='<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentCol
 /* One line per step; open it for the why, the screenshot and the raw actions. */
 function pstep(st,raw,isNew,i){
   const acts=(st.actions||[]).map(k=>raw[k]).filter(Boolean);
-  const th=thumbFor(st);
+  const th=st.frame||thumbFor(st);
   return `<details class="pstep glass${isNew?' new':''}" style="--i:${i}" data-step="${st.n}">`+
-    `<summary><span class="pn">${st.n}</span><span class="pt">${esc(st.title)}</span>`+
+    `<summary><span class="pn">${st.n}</span>`+
+      (st.frame&&!st.frame_same?`<img class="sshot" loading="lazy" src="${esc(st.frame)}" alt="Screen at step ${st.n}" onerror="this.style.visibility='hidden'">`
+        :st.frame_same?`<span class="same" title="Same screen as the step before">same screen</span>`:'<span></span>')+
+      `<span class="ptx"><span class="pt">${esc(st.title)}</span>${st.detail?`<span class="pd1">${esc(st.detail)}</span>`:''}</span>`+
       `<span class="pm">${st.app?`<span class="chip">${esc(st.app)}</span>`:''}<span>${mmss(st.t_start)}</span></span>${CHEV}</summary>`+
     `<div class="pbody"><div>`+
       (st.detail?`<div class="pd">${esc(st.detail)}</div>`:'')+
