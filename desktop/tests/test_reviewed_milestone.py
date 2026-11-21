@@ -6,12 +6,14 @@ import os
 from pathlib import Path
 import time
 
+import httpx
+
 from fastapi.testclient import TestClient
 import pytest
 
 from app import analyze, automations, automation_store, draft_review, mac_automation, main, meeting_automation
-from app import office_automation, office_store, privacy_review, workflow_evidence
-from app.models import Observations, Proposal
+from app import completion, office_automation, office_store, privacy_review, workflow_evidence
+from app.models import Proposal
 from app.office_recipes import RECIPES
 
 
@@ -30,8 +32,20 @@ def sandbox(tmp_path, monkeypatch):
 
 def test_review_binds_only_the_selected_jpeg_and_context(sandbox, monkeypatch):
     monkeypatch.setattr(main, 'ensure_ready', lambda: None)
-    monkeypatch.setenv('OPENROUTER_API_KEY', 'fake-key-unused-by-mocked-transport')
+    helper = sandbox / 'mock-helper'
+    helper.touch()
+    monkeypatch.setattr(mac_automation, 'HELPER', helper)
+    bridge_calls = []
     calls = []
+
+    async def keychain(operation):
+        bridge_calls.append(operation)
+        if operation == 'key_status':
+            return {'configured': True}
+        assert operation == 'get_key'
+        return {'value': 'fake-saved-mistral-key'}
+
+    monkeypatch.setattr(mac_automation, 'call', keychain)
     job = main.new_job('local-file-secret.mp4', 'unreviewed context')
     job.update(status='review', redaction_ready=True, metadata={'duration': 12}, sample_interval=1,
                frames=[{'id': f'f{i:04}', 'timestamp': i * 3} for i in range(1, 4)])
@@ -45,39 +59,55 @@ def test_review_binds_only_the_selected_jpeg_and_context(sandbox, monkeypatch):
     (folder / 'frames/f0001.jpg').write_bytes(b'unredacted-secret')
     main.persist(job)
 
-    async def provider(content, schema, *_args, **_kwargs):
-        calls.append(schema)
+    def provider(request):
+        assert request.url == httpx.URL('https://api.mistral.ai/v1/chat/completions')
+        assert request.headers['Authorization'] == 'Bearer fake-saved-mistral-key'
+        body = json.loads(request.content)
+        assert body['model'] == 'mistral-large-4-0' and 'provider' not in body
+        content = body['messages'][1]['content']
         blob = json.dumps(content)
         assert 'safe context' in blob
         assert all(secret not in blob for secret in ['unredacted-secret', 'unreviewed context', 'local-file-secret', 'f0002'])
-        if schema is Observations:
-            urls = [part['image_url']['url'] for part in content if part['type'] == 'image_url']
+        if isinstance(content, list):
+            calls.append('vision')
+            urls = [part['image_url'] for part in content if part['type'] == 'image_url']
             assert [base64.b64decode(url.split(',')[1]) for url in urls] == [images['f0001'], images['f0003']]
-            return Observations.model_validate({'limitations': [], 'steps': [
+            result = {'limitations': [], 'steps': [
                 {'title': 'View', 'application': 'Mail', 'description': 'Message visible', 'evidence_type': 'observed',
                  'confidence': 'high', 'uncertainty': '', 'start_frame_id': id, 'end_frame_id': id}
-                for id in ('f0001', 'f0003')]})
-        return Proposal.model_validate({'title': 'Reviewed test', 'summary': 'Visible activity', 'limitations': [],
-            'recommendations': [], 'workflow': {'name': 'Review', 'description': '', 'occurrences': [], 'repetition_assessment': ''}})
+                for id in ('f0001', 'f0003')]}
+        else:
+            calls.append('report')
+            result = {'title': 'Reviewed test', 'summary': 'Visible activity', 'limitations': [],
+                'recommendations': [], 'workflow': {'name': 'Review', 'description': '', 'occurrences': [], 'repetition_assessment': ''}}
+        event = {'model': body['model'], 'choices': [{'delta': {'content': json.dumps(result)}, 'finish_reason': 'stop'}]}
+        return httpx.Response(200, text=f'data: {json.dumps(event)}\n\ndata: [DONE]\n\n')
 
-    monkeypatch.setattr(analyze, 'complete', provider)
+    client_type = httpx.AsyncClient
+    monkeypatch.setattr(completion.httpx, 'AsyncClient', lambda **options: client_type(
+        transport=httpx.MockTransport(provider), **options))
     root = f'/api/jobs/{job["id"]}'
     with TestClient(main.app) as client:
+        health = client.get('/api/health').json()
+        assert health['configured'] and 'fake-saved-mistral-key' not in json.dumps(health)
         chosen = {'frame_ids': ['f0003', 'f0001'], 'context': 'safe context'}
         packet = client.post(root + '/privacy/preview?exact=true', json=chosen).json()
+        assert packet['provider'] == 'Mistral'
         assert [frame['id'] for frame in packet['frames']] == ['f0001', 'f0003'] and not calls
+        assert base64.b64decode(packet['frames'][0]['image_url'].split(',', 1)[1]) == images['f0001']
         assert client.get(root + '/redacted/f0001.jpg').content == images['f0001']
         approved = {**chosen, 'revision': packet['revision'], 'confirmed': True}
         assert client.post(root + '/privacy/approve', json={**approved, 'context': 'changes'}).status_code == 409
         assert client.post(root + '/privacy/approve', json={**approved, 'confirmed': False}).status_code == 422
         (redacted / 'f0001.jpg').write_bytes(b'\xff\xd8changed\xff\xd9')
         assert client.post(root + '/privacy/approve', json=approved).status_code == 409
-        assert not calls
+        assert not calls and 'get_key' not in bridge_calls
         (redacted / 'f0001.jpg').write_bytes(images['f0001'])
         assert client.post(root + '/privacy/approve', json=approved).status_code == 202
         completed = until(client, root, 'completed')
         assert completed['report']['excluded_frame_ids'] == ['f0002']
-        assert calls == [Observations, Proposal]
+        assert calls == ['vision', 'report'] and bridge_calls.count('get_key') == 1
+        assert completed['privacy_approval']['provider'] == 'Mistral'
 
 
 def test_refresh_preserves_local_report_and_invalidates_old_evidence(sandbox, monkeypatch):
@@ -110,6 +140,24 @@ def test_refresh_preserves_local_report_and_invalidates_old_evidence(sandbox, mo
         after = client.post(route + '/preview?exact=true', json=selection).json()
         assert after['revision'] != before['revision']
         assert base64.b64decode(after['frames'][0]['image_url'].split(',', 1)[1]) == updated
+
+
+def test_legacy_analysis_retry_requires_new_destination_approval(sandbox, monkeypatch):
+    monkeypatch.setattr(main, 'ensure_ready', lambda: None)
+    job = main.new_job('synthetic.mp4', '')
+    job.update(status='failed', redaction_ready=True, frames=[{'id': 'f0001', 'timestamp': 0}],
+               privacy_approval={'model': 'mistralai/mistral-large-4-0', 'revision': 'a' * 64})
+    main.persist(job)
+
+    def unexpected_launch(*args, **kwargs):
+        pytest.fail('A provider change must return to review before any analysis runs')
+
+    monkeypatch.setattr(main, 'launch', unexpected_launch)
+    with TestClient(main.app) as client:
+        response = client.post(f"/api/jobs/{job['id']}/retry")
+        assert response.status_code == 202
+        assert response.json()['status'] == 'review'
+        assert response.json()['privacy_approval'] is None
 
 
 def until(client, url, expected, timeout=120):

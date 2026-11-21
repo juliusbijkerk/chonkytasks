@@ -33,8 +33,8 @@ Requires Python 3.11+ for the pinned setup below and FFmpeg (`brew install ffmpe
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.lock.txt
-cp -n .env.example .env  # preserve an existing .env
-# Set OPENROUTER_API_KEY and OPENROUTER_MODEL in .env
+# Optional for a browser-only install without Keychain access:
+# set MISTRAL_API_KEY in .env
 bash scripts/start.sh
 ```
 
@@ -52,7 +52,7 @@ Open **http://127.0.0.1:8000**. Local findings work before any model key is conf
 
 During analysis, the progress bar animates and shows elapsed time. Four stages show preparation, screenshot reading, writing results, and validation. Screenshot counts are separate from batch counts; the current batch has a thumbnail preview. The percentage advances with completed stages and batches, not predicted model completion time.
 
-Model requests stream through OpenRouter. The app shows waiting/receiving/checking/retrying states, elapsed request time, stream update counts, and live output token estimates (marked ≈). Estimates use received text length, not stream chunk count; the final provider usage replaces the estimate with its native token total. Streamed reasoning contributes to the estimate but its text is discarded. Raw response and reasoning text are never sent to the progress UI. Progress updates reach the app through server-sent events with reconnection support.
+Model responses stream directly from Mistral. The app shows waiting/receiving/checking/retrying states, elapsed request time, stream update counts, and live output token estimates (marked ≈). Estimates use received text length, not stream chunk count; the final provider usage replaces the estimate with its native token total. Streamed reasoning contributes to the estimate but its text is discarded. Raw response and reasoning text are never sent to the progress UI. Progress updates reach the app through server-sent events with reconnection support.
 
 For meaningful repetition detection, include multiple completed examples in the recording. The local pass matches visible sources to results for six supported workflow types and links them back to playback. Limits are 500 MB and 15 minutes per recording. The video preview is silent. Native capture stops shortly before the import limits so it can finish saving the video.
 
@@ -60,16 +60,16 @@ For meaningful repetition detection, include multiple completed examples in the 
 
 - FFmpeg makes a browser-compatible preview and samples screenshots with their actual presentation timestamps. Pillow/NumPy compare pixels to remove consecutive near-duplicates while retaining revisits and periodic coverage. These operations are deterministic; they use no AI models.
 - The bundled macOS helpers use Apple Vision locally to check for matching source/result pairs and prepare masked JPEGs. The local checks can run without a model API key.
-- Privacy review places opaque bars over detected sensitive values such as credentials, contact details, and financial or government identifiers. It keeps the surrounding workflow visible. Use **Refresh masks** on an older recording and **Select all screenshots** or individual checkboxes to choose the evidence. Review the exact images before approving. Only the approved screenshots and context go to the configured Mistral vision model through OpenRouter in batches of 12. The report marks frames left out of model analysis.
+- Privacy review places opaque bars over detected sensitive values such as credentials, contact details, and financial or government identifiers. It keeps the surrounding workflow visible. Use **Refresh masks** on an older recording and **Select all screenshots** or individual checkboxes to choose the evidence. Review the exact images before approving. Only the approved screenshots and context go directly to the configured Mistral vision model in batches of 12. The report marks frames left out of model analysis.
 - Each batch must account for every screenshot exactly once in chronological ranges. Missing screenshots or overlapping steps get one correction attempt; incomplete coverage is rejected rather than silently omitted. Older saved reports are displayed with explicit screenshot-to-step links and marked gaps, without another model call.
 - A second call to the same Mistral model identifies recurring workflows and proposes automations. Pydantic validates the response; the server validates references and derives elapsed spans from screenshot timestamps. Overlapping repeated instances are rejected.
-- `OPENROUTER_MODEL` defaults to `mistralai/mistral-large-4-0`. Non-`mistralai/` model IDs are rejected. Provider routing can change the host serving the same Mistral model, never the model family. There is no fallback to another vendor's model.
+- `MISTRAL_MODEL` defaults to `mistral-large-4-0`. Recording analysis uses the Mistral Studio key already saved in **Connections**. Approvals bind the destination, model, context, and exact redacted bytes.
 
-API integration references: [OpenRouter model catalog](https://openrouter.ai/api/v1/models), [Mistral vision documentation](https://docs.mistral.ai/inference/conversations/vision). The configured model must support both image input and JSON output.
+API integration references: [Mistral vision documentation](https://docs.mistral.ai/inference/conversations/vision). The configured model must support both image input and JSON output.
 
 ## Storage and scope
 
-The server binds to loopback only. The API key stays on the server. Videos, screenshots, reports, and context are stored locally in ignored `data/jobs/`. Selected redacted screenshots, reviewed context, and model-derived observations are sent to OpenRouter/Mistral after approval. The raw recording stays on this Mac. API calls consume your OpenRouter credits.
+The server binds to loopback only. The API key stays on the server. Videos, screenshots, reports, and context are stored locally in ignored `data/jobs/`. Selected redacted screenshots, reviewed context, and model-derived observations are sent directly to Mistral after approval. The raw recording stays on this Mac. API calls use your Mistral workspace.
 
 This is a single-user local application, not an authenticated deployment. Do not expose the port publicly. To remove stored recordings, stop the app and delete their corresponding `data/jobs/<job-id>/` folders. The source Desktop recordings are never modified.
 
@@ -77,7 +77,7 @@ The six supported recipes can be activated after the local checks match two comp
 
 ## Activate a background automation
 
-Select **Activate** on the meeting-reply card or **Set up** on another workflow card. Add a **Mistral Studio API key with Workflows access**, then allow the **chonkytasks Automations** helper to access Mail and Calendar in the macOS prompts. The OpenRouter key used for recording analysis cannot activate Workflows. The Studio key is validated against the Workflows API and stored in macOS Keychain; it is not written to `.env`, the database, logs, or a LaunchAgent plist. An existing `MISTRAL_API_KEY` environment setting is also supported when no Keychain credential is saved.
+Select **Activate** on the meeting-reply card or **Set up** on another workflow card. Add a **Mistral Studio API key with Workflows access**, then allow the **chonkytasks Automations** helper to access Mail and Calendar in the macOS prompts. The same Mistral Studio key powers recording analysis. It is validated against the Workflows API and stored in macOS Keychain; it is not written to `.env`, the database, logs, or a LaunchAgent plist. An existing `MISTRAL_API_KEY` environment setting is also supported when no Keychain credential is saved.
 
 Once connected, activation starts a separate worker and creates or reuses the verified 30-second Mistral schedule for this installation. Each workflow can be paused independently. ChonkyTasks pauses the shared schedule when the last workflow is paused. The **Automations** sidebar page shows its status and supports pause/resume. The app confirms **Active** only after a worker heartbeat and an unpaused schedule are reported by Mistral. Missing permissions, offline workers, and unverified connections have distinct states.
 
@@ -118,4 +118,4 @@ node --check static/app.js
 
 Tests cover reviewed screenshot approval, video-based workflow discovery, provider streaming, meeting approval, and calendar recovery. The five office workflows are exercised through activation, the shared scheduled check, Activity, and approval using fresh fictional emails and files. Mail, Calendar, Mistral Workflows, and model calls are mocked in those tests. Set `CHONKYTASKS_SYNTHETIC_VIDEOS` to the generated fixture directory to run the full-video tests with the bundled native helpers. Local development can point at compiled helper executables with `CHONKYTASKS_REDACTOR` and `CHONKYTASKS_EVIDENCE_HELPER`.
 
-The UI is static HTML/CSS/JavaScript served by FastAPI. No frontend build step is needed. `requirements.lock.txt` records the tested dependency versions (Python 3.11+); `requirements.txt` contains compatible ranges for other Python versions. Mistral requests use `low` reasoning effort. Large 4 now supports low/medium/high according to [Mistral’s reasoning documentation](https://docs.mistral.ai/inference/conversations/reasoning); the gateway catalog may still advertise the older preview settings. Each attempt has a six-minute wall-clock timeout and a three-minute read timeout. Truncated responses retry with larger output budgets (16k → 32k → 64k), up to three attempts. Interrupted or invalid responses also have bounded retries. A retry reuses saved screenshot observations when they cover every frame and match the configured model, so a summary failure does not require another vision request.
+The UI is static HTML/CSS/JavaScript served by FastAPI. No frontend build step is needed. `requirements.lock.txt` records the tested dependency versions (Python 3.11+); `requirements.txt` contains compatible ranges for other Python versions. Mistral requests use `low` reasoning effort. Each attempt has a six-minute wall-clock timeout and a three-minute read timeout. Truncated responses retry with larger output budgets (16k → 32k → 64k), up to three attempts. Interrupted or invalid responses also have bounded retries. A retry reuses saved screenshot observations when they cover every frame and match the configured model, so a summary failure does not require another vision request.

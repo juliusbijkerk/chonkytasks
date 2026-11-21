@@ -3,11 +3,14 @@ import asyncio
 from datetime import datetime, timezone
 import json
 import math
-import os
+import re
 import time
 
 import httpx
 from pydantic import ValidationError
+
+MISTRAL_CHAT_URL = "https://api.mistral.ai/v1/chat/completions"
+MISTRAL_MODEL_ID = re.compile(r"(?:mistral|ministral|pixtral)-[a-z0-9]+(?:-[a-z0-9]+)*")
 
 SYSTEM = """You are an evidence-led business workflow analyst. All your answers must be in English.
 Write like a careful colleague taking notes: plain words, short sentences, concrete nouns and
@@ -43,17 +46,26 @@ class RetryableResponse(Exception):
         self.reason = reason
 
 
-async def complete(content, schema, usage: list, model: str, on_progress=None):
-    key = os.getenv("OPENROUTER_API_KEY", "").strip()
-    if not key:
-        raise ValueError("Add OPENROUTER_API_KEY to .env and restart the app.")
+def stream_text(content):
+    """Keep visible text and count, but never store, native thinking chunks."""
+    if isinstance(content, str):
+        return content, 0
+    text, thought_length = [], 0
+    for chunk in content if isinstance(content, list) else []:
+        if not isinstance(chunk, dict):
+            continue
+        if chunk.get("type") == "text" and isinstance(chunk.get("text"), str):
+            text.append(chunk["text"])
+        if chunk.get("type") == "thinking" and isinstance(chunk.get("thinking"), list):
+            thought_length += sum(len(item["text"]) for item in chunk["thinking"]
+                                  if isinstance(item, dict) and isinstance(item.get("text"), str))
+    return "".join(text), thought_length
+
+
+async def complete(content, schema, usage: list, model: str, on_progress=None, *, key: str):
     messages = [{"role": "system", "content": SYSTEM + "\nKeep descriptions concise.\nJSON schema:\n" + json.dumps(schema.model_json_schema())},
                 {"role": "user", "content": content}]
     budget = 16000
-    # Large 4's current API accepts low/medium/high. The gateway catalog can
-    # still advertise the preview's none/high options. Count streamed reasoning
-    # for activity, but never retain its text or send it to the browser.
-    reasoning = {"effort": "low"}
     async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=20)) as client:
         for attempt in range(1, 4):
             state = {"phase": "connecting", "attempt": attempt, "max_attempts": 3,
@@ -77,18 +89,19 @@ async def complete(content, schema, usage: list, model: str, on_progress=None):
             publish(force=True)
             try:
                 async with asyncio.timeout(360):
-                    async with client.stream("POST", "https://openrouter.ai/api/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {key}", "X-Title": "chonkytasks"},
+                    async with client.stream("POST", MISTRAL_CHAT_URL,
+                        headers={"Authorization": f"Bearer {key}"},
                         json={"model": model, "messages": messages, "temperature": 0.1, "max_tokens": budget,
-                              "reasoning": reasoning, "stream": True, "response_format": {"type": "json_object"},
-                              "provider": {"allow_fallbacks": True}}) as response:
+                              "reasoning_effort": "low", "stream": True,
+                              "response_format": {"type": "json_object"}}) as response:
                         if response.status_code in (429, 500, 502, 503, 504):
                             raise RetryableResponse("service_busy")
                         if response.status_code != 200:
-                            hints = {401: "The OpenRouter key was rejected. Check .env.",
-                                     402: "Your OpenRouter account needs credits.",
-                                     400: "OpenRouter rejected the request. Check the model's image and JSON support."}
-                            raise ValueError(hints.get(response.status_code, f"OpenRouter returned HTTP {response.status_code}. Please retry."))
+                            hints = {401: "Mistral rejected the key. Check the key in Connections.",
+                                     402: "Your Mistral account needs credits.",
+                                     403: "This Mistral key cannot access recording analysis. Check your Studio workspace.",
+                                     400: "Mistral rejected the request. Check the model's image and JSON support."}
+                            raise ValueError(hints.get(response.status_code, f"Mistral returned HTTP {response.status_code}. Please retry."))
                         publish("waiting", force=True)
                         parts, finish, actual_model, accounting = [], None, model, None
                         async for data in sse_data(response):
@@ -101,7 +114,7 @@ async def complete(content, schema, usage: list, model: str, on_progress=None):
                             if not isinstance(payload, dict) or payload.get("error"):
                                 raise RetryableResponse("interrupted")
                             actual_model = payload.get("model") or actual_model
-                            if not isinstance(actual_model, str) or not actual_model.startswith("mistralai/"):
+                            if not isinstance(actual_model, str) or not MISTRAL_MODEL_ID.fullmatch(actual_model):
                                 raise ValueError("The provider returned a non-Mistral model. Analysis stopped.")
                             state["last_event_at"] = now()
                             for choice in payload.get("choices") or []:
@@ -110,18 +123,10 @@ async def complete(content, schema, usage: list, model: str, on_progress=None):
                                 delta = choice.get("delta") or {}
                                 if not isinstance(delta, dict):
                                     raise RetryableResponse("interrupted")
-                                text = delta.get("content")
-                                text_length = len(text) if isinstance(text, str) else 0
-                                if isinstance(text, str) and text:
+                                text, thought_length = stream_text(delta.get("content"))
+                                text_length = len(text)
+                                if text:
                                     parts.append(text)
-                                thought = delta.get("reasoning")
-                                # Some providers send both representations of the
-                                # same delta. Prefer the plain one to avoid doubling.
-                                if not isinstance(thought, str) or not thought:
-                                    thought = "".join(detail.get("text", "") for detail in
-                                        (delta.get("reasoning_details") or []) if isinstance(detail, dict)
-                                        and detail.get("type") == "reasoning.text" and isinstance(detail.get("text"), str))
-                                thought_length = len(thought)
                                 if text_length or thought_length:
                                     state["characters_received"] += text_length + thought_length
                                     state["reasoning_characters_received"] += thought_length
@@ -164,7 +169,7 @@ async def complete(content, schema, usage: list, model: str, on_progress=None):
                 raise ValueError("The model took too long to respond. Your recording is saved; retry this recording.")
             except httpx.RequestError:
                 publish("failed", force=True, reason="connection")
-                raise ValueError("The connection to OpenRouter was interrupted. Retry this recording.")
+                raise ValueError("The connection to Mistral was interrupted. Retry this recording.")
             except RetryableResponse as error:
                 if attempt == 3:
                     publish("failed", force=True, reason=error.reason)
@@ -184,6 +189,6 @@ async def complete(content, schema, usage: list, model: str, on_progress=None):
             except ValueError:
                 publish("failed", force=True)
                 raise
-    raise ValueError("OpenRouter did not return a valid response.")
+    raise ValueError("Mistral did not return a valid response.")
 
 

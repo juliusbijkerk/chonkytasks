@@ -11,6 +11,7 @@ import subprocess
 from tempfile import TemporaryDirectory
 
 
+PROVIDER = "Mistral"
 REDACTION_POLICY = "sensitive-values-v1"
 FRAME_ID = re.compile(r"f[0-9]{4}")
 HELPER = Path.home() / "Applications/chonkytasks.app/Contents/Helpers/RedactEvidence"
@@ -58,11 +59,11 @@ class ReviewedEvidence:
     images: dict[str, bytes]
 
     def selection(self) -> dict:
-        return {"revision": self.revision, "model": self.model, "context": self.context,
+        return {"revision": self.revision, "provider": PROVIDER, "model": self.model, "context": self.context,
                 "frame_ids": [frame["id"] for frame in self.frames]}
 
     def manifest(self) -> dict:
-        return {**self.selection(), "provider": "OpenRouter", "frames": [
+        return {**self.selection(), "frames": [
             {"id": frame["id"], "timestamp": frame["timestamp"],
              "image_url": "data:image/jpeg;base64," + base64.b64encode(self.images[frame["id"]]).decode("ascii")}
             for frame in self.frames]}
@@ -82,7 +83,7 @@ def review(folder: Path, frames: list[dict], selected: list[str], context: str, 
             continue
         approved.append(frame)
         images[frame_id] = read_image(folder / "redacted", frame_id)
-    stamp = {"format": 1, "job": folder.name, "provider": "OpenRouter", "model": model, "context": context,
+    stamp = {"format": 1, "job": folder.name, "provider": PROVIDER, "model": model, "context": context,
              "timeline": [(frame["id"], frame["timestamp"]) for frame in frames], "frames": [
         (frame["id"], frame["timestamp"], hashlib.sha256(images[frame["id"]]).hexdigest()) for frame in approved]}
     revision = hashlib.sha256(json.dumps(stamp, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
@@ -91,6 +92,8 @@ def review(folder: Path, frames: list[dict], selected: list[str], context: str, 
 
 def stored(folder: Path, job: dict, model: str) -> ReviewedEvidence:
     approved = job.get("privacy_approval") or {}
+    if approved.get("provider") != PROVIDER:
+        raise ValueError("Review and approve the evidence for direct Mistral analysis.")
     if approved.get("model") != model:
         raise ValueError("Review and approve the evidence for the current analysis model.")
     try:
