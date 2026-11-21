@@ -14,3 +14,6 @@ out/*
 !out/skills/
 out/skills/*
 !out/skills/demo_01/
+
+# saved test runs (recordings + analysis), local only
+runs/
