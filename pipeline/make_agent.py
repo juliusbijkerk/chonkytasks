@@ -26,6 +26,21 @@ SHEET: Path = OUT / "agents" / "agent.csv"
 LOG: list = []
 DONE: dict = {}
 
+# When does it stop? When it calls finish, and at the latest after this many
+# tool calls or seconds: past either, every tool answers "call finish", and
+# main() cuts the run off a little later. A run that keeps polishing rows it
+# already saved costs time on stage and money on the API.
+MAX_CALLS = 40
+MAX_SECONDS = 120
+BUDGET = {"calls": 0, "t0": time.time()}
+
+
+def over_budget():
+    if BUDGET["calls"] >= MAX_CALLS or time.time() - BUDGET["t0"] > MAX_SECONDS:
+        return "limit reached: stop now and call finish with what you have."
+    BUDGET["calls"] += 1
+    return None
+
 
 def emit(**ev):
     ev["ts"] = round(time.time(), 2)
@@ -69,6 +84,8 @@ async def _check_hop(request):
 async def fetch_page(url: str) -> dict:
     """Open a web page. Returns its visible text (trimmed) and up to 80 links
     as {text, url}, so you can follow job postings or detail pages."""
+    if (stop := over_budget()):
+        return {"error": stop}
     emit(event="tool", tool="fetch_page", url=url)
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=25, event_hooks={"request": [_check_hop]},
@@ -94,6 +111,8 @@ async def append_row(fields: dict) -> str:
     location, salary, link). Values must be the value only, never a paragraph.
     Saving an item with the same link again replaces its row, so you can fix
     a row by saving it again."""
+    if (stop := over_budget()):
+        return stop
     long = [k for k, v in fields.items() if len(str(v)) > 160]
     if long:
         return (f"not saved: {', '.join(long)} too long. Put only the value, e.g. "
@@ -103,6 +122,9 @@ async def append_row(fields: dict) -> str:
     row = {k: str(v) for k, v in fields.items()}
     key = lambda r: r.get("link") or r.get("url") or r.get("title")
     hit = next((i for i, r in enumerate(rows) if key(r) and key(r) == key(row)), None)
+    if hit is not None and rows[hit] == row:
+        return ("unchanged: this row is already saved exactly like this, do not save it again. "
+                "If every item the user asked for is saved, call finish now.")
     if hit is None:
         rows.append(row)
     else:
@@ -115,7 +137,9 @@ async def append_row(fields: dict) -> str:
         w.writeheader()
         w.writerows(rows)
     emit(event="row", fields=row, updated=hit is not None)
-    return f"{'updated' if hit is not None else 'saved'}; the sheet has {len(rows)} rows"
+    names = ", ".join((r.get("company") or r.get("title") or r.get("name") or key(r) or "?")[:40] for r in rows)
+    return (f"{'updated' if hit is not None else 'saved'}. {len(rows)} rows so far: {names}. "
+            f"When every item the user asked for is saved, call finish. Do not re-save rows that are already right.")
 
 
 @agents.tool
@@ -188,7 +212,12 @@ async def main():
     t0 = time.time()
     agent = agents.Agent(model=args.model, name=f"chonk-{aid}", instructions=instr,
                          tools=[fetch_page, append_row, finish])
-    result = await agent.run(args.request)
+    BUDGET.update(calls=0, t0=time.time())
+    try:
+        result = await asyncio.wait_for(agent.run(args.request), timeout=MAX_SECONDS + 30)
+    except asyncio.TimeoutError:
+        result = None
+        DONE.setdefault("summary", f"Stopped after {MAX_SECONDS + 30}s; these are the rows it saved.")
     rows = list(csv.DictReader(SHEET.open())) if SHEET.exists() else []
     emit(event="end", seconds=round(time.time() - t0, 1), rows=rows,
          summary=DONE.get("summary") or str(getattr(result, "text", ""))[:600],
