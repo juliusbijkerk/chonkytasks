@@ -46,7 +46,7 @@ AGENT = {"proc": None, "id": None}   # a Mistral agent built from a recognised p
 
 VIDEO_EXT = (".mp4", ".webm", ".mov", ".mkv", ".m4v")
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".heic")
-REC = {"file": None, "started": 0, "bytes": 0}   # live browser recording
+REC = {"file": None, "started": 0, "bytes": 0, "cam": None}   # live browser recording (+ optional camera)
 
 
 def find_video():
@@ -64,7 +64,7 @@ def source():
 def reset_outputs():
     """A new recording invalidates everything downstream of it."""
     for stale in ("segments.json", "steps.json", "process.json", "opportunities.json", "narration.txt",
-                  "run.jsonl", "recording.wav", "source.json"):
+                  "run.jsonl", "recording.wav", "source.json", "camera.webm", "camera.mp4"):
         (OUT / stale).unlink(missing_ok=True)
     for ext in VIDEO_EXT:
         (OUT / f"recording{ext}").unlink(missing_ok=True)
@@ -139,6 +139,7 @@ API = [
     {"method": "POST", "path": "/api/upload-images", "body": "multipart/form-data, one or more screenshots", "does": "replaces the input with screenshots (one frame each, in filename order)"},
     {"method": "POST", "path": "/api/record/start", "body": '{"mime": "video/webm"}', "does": "starts a streamed browser recording; clears downstream output"},
     {"method": "POST", "path": "/api/record/chunk", "body": "raw bytes", "does": "appends the next recorder chunk, in order"},
+    {"method": "POST", "path": "/api/record/camchunk", "body": "raw bytes", "does": "appends the next camera chunk (only when started with camera: true); saved as out/camera.webm, not analysed yet"},
     {"method": "POST", "path": "/api/record/stop", "does": "finishes the recording and starts 'frames'"},
     {"method": "POST", "path": "/api/pipeline", "body": '{"stages": [...]} (optional)', "does": "runs those stages (default: everything not done), in parallel where they do not depend on each other"},
     {"method": "POST", "path": "/api/stage", "body": '{"name": "<stage>"}', "does": "runs one pipeline stage; 409 if one is already running"},
@@ -529,6 +530,7 @@ class H(SimpleHTTPRequestHandler):
                 "source": source(),
                 "has_input": bool(find_video() or list(OUT.glob("frames/*.jpg"))),
                 "has_audio": (OUT / "recording.wav").exists(),
+                "has_camera": any((OUT / f"camera{e}").exists() for e in (".webm", ".mp4")),
                 "recording": {"live": REC["file"] is not None,
                               "seconds": round(time.time() - REC["started"], 1) if REC["file"] else 0,
                               "mb": round(REC["bytes"] / 1e6, 1)},
@@ -708,7 +710,8 @@ class H(SimpleHTTPRequestHandler):
             if busy():
                 return self._json({"error": "something is still running"}, 409)
             n = int(self.headers.get("Content-Length", 0))
-            mime = json.loads(self.rfile.read(n) or b"{}").get("mime", "")
+            body = json.loads(self.rfile.read(n) or b"{}")
+            mime, camera = body.get("mime", ""), bool(body.get("camera"))
             OUT.mkdir(exist_ok=True)
 
             # Archive whatever is already there before clearing anything.
@@ -718,7 +721,7 @@ class H(SimpleHTTPRequestHandler):
             # minutes making, with no copy anywhere. Never again: old takes
             # move aside, they do not disappear.
             keep = OUT / "takes"
-            for old in list(OUT.glob("recording.*")):
+            for old in list(OUT.glob("recording.*")) + list(OUT.glob("camera.*")):
                 if old.suffix in (".webm", ".mp4", ".wav") and old.stat().st_size > 0:
                     keep.mkdir(exist_ok=True)
                     stamp = time.strftime("%H%M%S", time.localtime(old.stat().st_mtime))
@@ -728,6 +731,21 @@ class H(SimpleHTTPRequestHandler):
             REC.update(file=OUT / ("recording.mp4" if "mp4" in mime else "recording.webm"),
                        started=time.time(), bytes=0)
             REC["file"].write_bytes(b"")
+            # The camera goes to its own file on the same clock as the screen:
+            # it shows what happens off screen (paper, phone, a colleague).
+            # Nothing reads it yet; the screen recording drives the pipeline.
+            REC["cam"] = (OUT / ("camera.mp4" if "mp4" in mime else "camera.webm")) if camera else None
+            if REC["cam"]:
+                REC["cam"].write_bytes(b"")
+            return self._json({"ok": True, "camera": camera})
+
+        if u.path == "/api/record/camchunk":
+            n = int(self.headers.get("Content-Length", 0))
+            data = self.rfile.read(n)
+            if REC["cam"] is None:
+                return self._json({"error": "not recording the camera"}, 409)
+            with REC["cam"].open("ab") as f:
+                f.write(data)
             return self._json({"ok": True})
 
         if u.path == "/api/record/chunk":
@@ -743,14 +761,17 @@ class H(SimpleHTTPRequestHandler):
         if u.path == "/api/record/stop":
             if REC["file"] is None:
                 return self._json({"error": "not recording"}, 409)
-            dest, secs = REC["file"], time.time() - REC["started"]
-            REC.update(file=None, started=0)
+            dest, secs, cam = REC["file"], time.time() - REC["started"], REC["cam"]
+            REC.update(file=None, started=0, cam=None)
+            if cam and cam.exists() and cam.stat().st_size == 0:
+                cam.unlink()
+                cam = None
             if dest.stat().st_size == 0:
                 dest.unlink()
                 return self._json({"error": "nothing was recorded"}, 400)
             (OUT / "source.json").write_text(json.dumps(
                 {"kind": "recording", "file": dest.name, "seconds": round(secs, 1),
-                 "every": frame_every(dest, secs)}))
+                 "every": frame_every(dest, secs), **({"camera": cam.name} if cam else {})}))
             ok, err = start_pipeline(PIPELINE, dest)
             return self._json({"ok": ok, "error": err, "seconds": round(secs, 1),
                                "mb": round(dest.stat().st_size / 1e6, 1)})
@@ -839,4 +860,14 @@ if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8799
     OUT.mkdir(exist_ok=True)
     print(f"\n  {NAME}  ->  http://localhost:{port}   (agents: /llms.txt)\n")
-    ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()
+    # HOST=0.0.0.0 lets a phone on the same network open it. Off by default:
+    # anyone who can reach it can run the pipeline and agents on your key.
+    host = os.environ.get("HOST", "127.0.0.1")
+    if host != "127.0.0.1":
+        try:
+            ip = subprocess.run(["ipconfig", "getifaddr", "en0"], capture_output=True,
+                                text=True, timeout=3).stdout.strip()
+        except Exception:
+            ip = ""
+        print(f"  on your phone (same wifi or hotspot):  http://{ip or '<this-mac-ip>'}:{port}\n")
+    ThreadingHTTPServer((host, port), H).serve_forever()
