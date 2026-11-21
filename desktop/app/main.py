@@ -41,6 +41,7 @@ MAX_BYTES = 500 * 1024 * 1024
 EXTENSIONS = {".mp4", ".mov", ".webm", ".mkv", ".m4v"}
 JOBS: dict[str, dict] = {}
 TASKS: set = set()
+REFRESHING_MASKS: set[str] = set()
 SUBSCRIBERS: dict[str, set[asyncio.Queue]] = {}
 SLOTS = asyncio.Semaphore(2)
 
@@ -177,7 +178,7 @@ async def process(job, *, for_analysis=False):
                 # A missing redactor does not block local findings or authorize a cloud request.
                 update(redaction_ready=False, redaction_message=str(error))
             else:
-                update(redaction_ready=True, redaction_message="")
+                update(redaction_ready=True, redaction_message="", redaction_policy=privacy_review.REDACTION_POLICY)
             update(status="review", stage="review", progress=25, message="Review recording evidence")
         except asyncio.CancelledError:
             update(status="failed", stage="failed", message="Analysis stopped when the server shut down. Retry this recording.")
@@ -585,13 +586,31 @@ class EvidenceApproval(EvidenceSelection):
 
 def check_evidence_selection(job: dict, selection: EvidenceSelection):
     reviewable = job['status'] == 'review' or (job['status'] == 'completed' and job.get('local_only'))
-    if not reviewable or not job.get('redaction_ready'):
+    if not reviewable or not job.get('redaction_ready') or job['id'] in REFRESHING_MASKS:
         raise HTTPException(409, 'Prepare the local privacy review first.')
     try:
         return privacy_review.review(DATA / job['id'], job['frames'], selection.frame_ids, selection.context, get_model())
     except (ValueError, OSError) as error:
         message = str(error) if isinstance(error, ValueError) else 'A redacted screenshot is unavailable.'
         raise HTTPException(422, message) from None
+
+
+@app.post('/api/jobs/{job_id}/privacy/refresh')
+async def refresh_evidence_masks(job_id: str):
+    job = get_job(job_id)
+    reviewable = job['status'] == 'review' or (job['status'] == 'completed' and job.get('local_only'))
+    if not reviewable or not job.get('redaction_ready') or not job.get('frames') or job_id in REFRESHING_MASKS:
+        raise HTTPException(409, 'This recording is not ready to refresh its privacy masks.')
+    REFRESHING_MASKS.add(job_id)
+    try:
+        await asyncio.to_thread(privacy_review.prepare, DATA / job_id, job['frames'])
+        job.update(redaction_ready=True, redaction_message='', redaction_policy=privacy_review.REDACTION_POLICY)
+        persist(job)
+        return job
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from None
+    finally:
+        REFRESHING_MASKS.discard(job_id)
 
 
 @app.post('/api/jobs/{job_id}/privacy/preview')
@@ -677,6 +696,8 @@ async def edit_job(job_id: str, changes: RecordingEdit):
 @app.delete("/api/jobs/{job_id}", status_code=204)
 async def delete_job(job_id: str):
     job = get_job(job_id)
+    if job_id in REFRESHING_MASKS:
+        raise HTTPException(409, 'Wait for privacy masks to finish refreshing before deleting.')
     if job["status"] in ("queued", "processing"):
         raise HTTPException(409, "Wait for this recording to finish before deleting it.")
     # Only remove the app's stored copy. Original uploads and Desktop files are

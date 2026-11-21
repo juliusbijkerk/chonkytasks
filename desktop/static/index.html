@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/static/chonkytasks.css">
   <script src="/static/brand-motion.js" defer></script>
   <script src="/static/app.js" defer></script>
+  <script src="/static/capture.js" defer></script>
   <script src="/static/automations.js" defer></script>
   <script src="/static/activity.js" defer></script>
   <script src="/static/drafts.js" defer></script>
@@ -48,12 +49,27 @@
     <header class="toolbar">
       <button class="icon-button" id="sidebar-toggle" aria-label="Hide sidebar" aria-controls="sidebar" aria-expanded="true" title="Toggle sidebar"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2"/><path d="M8 4v12M5 7h.1M5 10h.1"/></svg></button>
       <span class="toolbar-title" id="view-title">New recording</span>
+      <div class="capture-active" id="active-capture" hidden>
+        <span id="capture-indicator" role="status"></span>
+        <button class="secondary" id="stop-capture" type="button">Stop recording</button>
+      </div>
     </header>
     <main id="main-content">
     <div id="error" class="error" role="alert" hidden></div>
 
     <section id="home-view">
       <div class="page-heading"><h1>New recording</h1><p>See the steps. Automate the repeat.</p></div>
+      <div class="capture-home" id="capture-home" hidden>
+        <div class="capture-actions">
+          <img src="/static/brand/mark-mistral.svg" class="capture-mascot" data-chonk-motion="hop" alt="" width="32" height="32">
+          <button class="primary" id="open-capture" type="button" aria-expanded="false" aria-controls="capture-sources">Record screen</button>
+          <div class="capture-sources" id="capture-sources" role="group" aria-label="Recording source" hidden>
+            <button class="secondary" id="capture-display" type="button">Entire screen</button>
+            <button class="secondary" id="capture-window" type="button">Specific window</button>
+          </div>
+        </div>
+        <p id="capture-status" role="status" hidden></p>
+      </div>
       <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Drop a screen recording or choose a file">
         <input type="file" id="file-input" accept=".mp4,.mov,.webm,.mkv,.m4v" hidden>
         <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>

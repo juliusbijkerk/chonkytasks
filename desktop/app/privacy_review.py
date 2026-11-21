@@ -11,6 +11,7 @@ import subprocess
 from tempfile import TemporaryDirectory
 
 
+REDACTION_POLICY = "sensitive-values-v1"
 FRAME_ID = re.compile(r"f[0-9]{4}")
 HELPER = Path.home() / "Applications/chonkytasks.app/Contents/Helpers/RedactEvidence"
 
