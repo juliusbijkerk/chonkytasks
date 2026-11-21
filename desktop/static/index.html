@@ -103,12 +103,12 @@
       <div class="activity-tabs" role="group" aria-label="Activity filter"><button class="active" data-activity-filter="all" aria-pressed="true">All runs</button><button data-activity-filter="results" aria-pressed="false">Results & alerts</button></div>
       <div id="activity-list" aria-live="polite"></div>
       <button class="secondary activity-more" id="activity-more" hidden>Load earlier runs</button>
-      <p class="activity-retention">History is kept on this Mac for 7 days.</p>
+      <p class="activity-retention">Run history is kept on this Mac for 7 days. Results awaiting approval stay in Activity.</p>
     </section>
     </main>
   </div>
   <dialog class="draft-dialog" id="draft-dialog" aria-labelledby="draft-title" tabindex="-1">
-    <div class="draft-heading"><div><span class="draft-eyebrow">Reply to review</span><h2 id="draft-title">Email preview</h2></div><button class="draft-close" id="draft-close" aria-label="Close preview">×</button></div>
+    <div class="draft-heading"><div><span class="draft-eyebrow" id="draft-eyebrow">Reply to review</span><h2 id="draft-title">Email preview</h2></div><button class="draft-close" id="draft-close" aria-label="Close preview">×</button></div>
     <div id="draft-preview" aria-live="polite"></div>
     <p class="draft-error" id="draft-error" role="alert" hidden></p>
     <div class="draft-footer"><span id="draft-help">Your reply stays in Drafts until you send it.</span><div class="dialog-actions"><button class="secondary" id="draft-keep">Keep draft</button><button class="primary" id="draft-send" disabled>Send reply</button></div></div>
@@ -133,17 +133,22 @@
   </dialog>
   <dialog class="connection-dialog" id="connection-dialog" aria-labelledby="connection-title">
     <div class="connection-title"><h2 id="connection-title">Connect your apps</h2><button class="icon-button" id="connection-close" aria-label="Close connections">×</button></div>
-    <p class="connection-intro">Connect once, then activate automations in one click.</p>
+    <p class="connection-intro" id="connection-intro">Connect once, then activate automations in one click.</p>
+    <form class="connection-section" id="workflow-config" hidden>
+      <p class="connection-help" id="workflow-source-hint"></p>
+      <div id="workflow-subject-field" hidden><label for="workflow-subject-prefix">Email subject starts with</label><input id="workflow-subject-prefix" class="workflow-input" maxlength="100" autocomplete="off" aria-describedby="workflow-source-hint"></div>
+      <div id="workflow-status-field" hidden><label for="workflow-status-filter">Include only this status (optional)</label><input id="workflow-status-filter" class="workflow-input" maxlength="100" autocomplete="off" aria-describedby="workflow-status-help"><p class="connection-help" id="workflow-status-help">Leave blank to include every status in the spreadsheet.</p></div>
+    </form>
     <section class="connection-section">
       <div class="connection-row"><div><strong>Mistral Workflows</strong><small id="mistral-connection-state">Not connected</small></div><button class="link" id="change-mistral-key" hidden>Change key</button></div>
       <form id="mistral-key-form"><label for="mistral-key">Mistral Studio API key</label><div class="key-input-row"><input id="mistral-key" type="password" autocomplete="off" placeholder="Paste your key" required><button class="secondary" type="submit" id="connect-mistral">Connect</button></div><a class="connection-help key-link" href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener noreferrer">Get a key in Mistral Studio ↗</a><p class="connection-help">Sign in → API Keys → New key. Name it “chonkytasks”, then paste it here.</p><p class="connection-help">Stored in macOS Keychain. Workflows access is required.</p></form>
     </section>
-    <section class="connection-section">
+    <section class="connection-section" id="mac-connections">
       <div class="connection-row"><div><strong>Mail</strong><small id="mac-connection-state">Not connected</small></div><button class="secondary" id="connect-mac" aria-label="Allow Mail access">Allow access</button></div>
-      <div class="connection-row calendar-connection"><div><strong>Calendar</strong><small id="calendar-connection-state">Not connected</small></div><button class="secondary" id="connect-calendar" aria-label="Allow Calendar access">Allow access</button></div>
-      <div class="permission-help" id="permission-help" hidden><p>Enable calendar access for chonkytasks in Calendars settings. Mail access is under Automation.</p><div><button class="link" data-privacy-pane="Calendars">Calendar settings ↗</button><button class="link" data-privacy-pane="Automation">Mail permissions ↗</button></div></div>
+      <div class="connection-row calendar-connection" id="calendar-connection"><div><strong>Calendar</strong><small id="calendar-connection-state">Not connected</small></div><button class="secondary" id="connect-calendar" aria-label="Allow Calendar access">Allow access</button></div>
+      <div class="permission-help" id="permission-help" hidden><p id="permission-copy">Enable calendar access for chonkytasks in Calendars settings. Mail access is under Automation.</p><div><button class="link" data-privacy-pane="Calendars">Calendar settings ↗</button><button class="link" data-privacy-pane="Automation">Mail permissions ↗</button></div></div>
     </section>
-    <p class="connection-footnote">The meeting workflow may send new message text to Mistral to identify requests. Checks run every 30 seconds while this Mac is awake and online, even after you close chonkytasks.</p>
+    <p class="connection-footnote" id="connection-footnote">The meeting workflow may send new message text to Mistral to identify requests. Checks run every 30 seconds while this Mac is awake and online, even after you close chonkytasks.</p>
     <p class="connection-error" id="connection-error" role="alert" hidden></p>
     <div class="dialog-actions"><button class="primary" id="connection-done">Done</button></div>
   </dialog>

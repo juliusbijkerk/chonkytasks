@@ -526,14 +526,14 @@ const list = (items, cls = 'clean-list') => `<ul class="${cls}">${items.map((ite
 const seekBtn = (seconds, label) => `<button class="seek" data-seek="${seconds}">${esc(label ?? stamp(seconds))}</button>`;
 
 function renderRecommendation(rec, frames, index) {
-  const executable = window.automationUI?.supports(rec);
+  const flow = window.automationUI?.details(rec);
   const summary = rec.summary;
   return `<article class="suggestion">
     <div class="suggestion-heading"><h3>${esc(rec.title)}</h3><div class="automation-action" data-automation-action="${index}"></div></div>
     <p>${esc(summary)}</p>
     <div class="automation-state" data-automation-state="${index}"></div>
     <details class="automation-details"><summary>View details</summary>
-    ${executable ? `<div class="sub">How it runs</div>${list(['Checks new messages every 30 seconds while this Mac is awake and online.', 'Identifies meeting requests and checks your calendar for availability.', 'Prepares an acceptance, the next free weekday slot, or a request for clarification.', 'You review and approve the reply and any calendar event.'])}<div class="sub">Connected apps</div><p>Mail and Calendar on this Mac · Mistral Workflows</p>` : `<div class="sub">Automate</div>${list(rec.automated_steps)}
+    ${flow ? `<div class="sub">How it runs</div>${list(flow.steps)}<div class="sub">Connected apps</div><p>${esc(flow.apps)}</p>` : `<div class="sub">Automate</div>${list(rec.automated_steps)}
     ${rec.human_steps.length ? `<div class="sub">Keep manual</div>${list(rec.human_steps)}` : ''}
     ${rec.integrations.length ? `<div class="sub">Connects to</div>${rec.integrations.map((i) => `<div class="integration"><strong>${esc(i.name)}</strong><p>${esc(i.purpose)}</p><small>${esc(i.requirement)}</small></div>`).join('')}` : ''}
     <div class="sub">How to build</div>${list(rec.implementation_steps, 'num-list')}`}

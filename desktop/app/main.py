@@ -9,6 +9,7 @@ from typing import Literal
 import re
 import shutil
 import uuid
+from urllib.parse import quote
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
@@ -23,6 +24,8 @@ load_dotenv(ROOT / ".env")
 from .analyze import analyze, get_model
 from .video import extract_frames, make_preview, probe
 from . import automations, automation_store, mac_automation, draft_review, privacy_review, workflow_evidence
+from . import office_automation, office_store
+from .office_recipes import RECIPES
 
 DATA = ROOT / "data" / "jobs"
 DATA.mkdir(parents=True, exist_ok=True)
@@ -63,12 +66,17 @@ async def lifespan(app):
         if state['status'] in ('activating', 'pausing'):
             automation_store.update(status='error', enabled=False,
                 message='Setup was interrupted. Activate again to finish it.')
+        for workflow in office_store.states():
+            if workflow['status'] == 'activating':
+                office_store.set_status(workflow['kind'], 'error', False, 'Setup was interrupted. Activate again to finish it.')
     for file in DATA.glob("*/job.json"):
         try:
             job = json.loads(file.read_text())
             if job["status"] in ("queued", "processing"):
                 job.update(status="failed", stage="failed", message="The app restarted before analysis completed. Retry this recording.")
                 persist(job)
+            if job['status'] == 'completed' and job.get('local_findings') and job.get('report'):
+                workflow_evidence.attach(job['report'], job)
             JOBS[job["id"]] = job
         except (ValueError, KeyError):
             continue
@@ -196,10 +204,17 @@ class MistralConnection(BaseModel):
     api_key: SecretStr
 
 
+class OfficeConfiguration(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    subject_prefix: str = Field(default='', max_length=100)
+    status_filter: str = Field(default='', max_length=100)
+
+
 class AutomationActivation(BaseModel):
     model_config = ConfigDict(extra='forbid')
     job_id: str = Field(pattern=r'^[a-f0-9]{32}$')
-    recommendation_index: int = Field(ge=0, le=2)
+    recommendation_index: int = Field(ge=0, le=11)
+    config: OfficeConfiguration = Field(default_factory=OfficeConfiguration)
 
 
 @app.get('/api/connections')
@@ -228,7 +243,7 @@ async def connect_mac(service: str = Query(default='both', pattern=r'^(both|mail
 
 @app.get('/api/automations')
 async def automation_status():
-    return await automations.status()
+    return await automations.dashboard()
 
 
 @app.get('/api/activity')
@@ -283,6 +298,55 @@ async def complete_calendar_event(draft_id: str, request: CalendarApproval):
         raise HTTPException(error.status, str(error)) from None
 
 
+class OfficeApproval(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    revision: str = Field(pattern=r'^[0-9a-f]{64}$')
+    confirmed: Literal[True]
+
+
+@app.get('/api/workflow-drafts/{draft_id}')
+async def preview_workflow_draft(draft_id: str):
+    draft = office_store.preview(draft_id)
+    if draft is None:
+        raise HTTPException(404, 'This workflow result is no longer available.')
+    return draft
+
+
+@app.post('/api/workflow-drafts/{draft_id}/approve')
+async def approve_workflow_draft(draft_id: str, request: OfficeApproval):
+    if not office_store.preview(draft_id):
+        raise HTTPException(404, 'This workflow result is no longer available.')
+    try:
+        return office_store.approve(draft_id, request.revision)
+    except ValueError as error:
+        raise HTTPException(409, str(error)) from None
+
+
+@app.get('/api/workflow-drafts/{draft_id}/output')
+async def download_workflow_output(draft_id: str):
+    result = office_store.output(draft_id)
+    if result is None:
+        raise HTTPException(404, 'Approve the result in Activity to download it.')
+    filename = quote(Path(result['relative_path']).name)
+    return Response(result['content'], media_type=result['mime_type'],
+                    headers={'Content-Disposition': f"attachment; filename*=UTF-8''{filename}"})
+
+
+@app.post('/api/workflow-drafts/{draft_id}/reveal')
+async def reveal_workflow_output(draft_id: str):
+    result = office_store.output(draft_id)
+    path = result.get('output_path') if result else None
+    if not path:
+        raise HTTPException(404, 'This approved result is unavailable on this Mac.')
+    try:
+        action = await asyncio.create_subprocess_exec('/usr/bin/open', '-R', path)
+        if await action.wait() != 0:
+            raise OSError
+    except OSError:
+        raise HTTPException(500, 'ChonkyTasks could not show this result in Finder.') from None
+    return {'opened': True}
+
+
 @app.post('/api/connections/mac/settings/{pane}')
 async def open_privacy_settings(pane: str):
     if pane not in ('Calendars', 'Automation'):
@@ -301,6 +365,9 @@ async def activate_automation(request: AutomationActivation):
         raise HTTPException(409, 'Choose a completed analysis to activate an automation.')
     if not automations.supported(recommendations[request.recommendation_index]):
         raise HTTPException(422, 'This suggestion does not yet have an executable automation.')
+    kind = automations.office_kind(recommendations[request.recommendation_index])
+    if kind:
+        return await queue_office_workflow(kind, job['id'], request.config.model_dump(exclude_defaults=True))
     return await queue_automation(job, request.recommendation_index)
 
 
@@ -338,6 +405,65 @@ async def resume_automation():
 @app.post('/api/automations/pause')
 async def pause_automation():
     return await automations.pause()
+
+
+async def queue_office_workflow(kind, job_id, config):
+    state = office_store.get(kind)
+    if state and (state['enabled'] or state['status'] == 'activating'):
+        return state
+    recipe = RECIPES[kind]
+    required = ['connected', 'runtime_ready']
+    if recipe['source'] == 'mail':
+        required.append('mail')
+        if not config.get('subject_prefix'):
+            raise HTTPException(422, 'Enter the subject prefix to watch for in Mail.')
+    readiness = await automations.settings()
+    if not all(readiness.get(key) for key in required):
+        raise HTTPException(409, 'Connect Mistral Workflows and allow access to the workflow source before activating.')
+    # A second request may have queued activation while connections were checked.
+    state = office_store.get(kind)
+    if state and (state['enabled'] or state['status'] == 'activating'):
+        return state
+    try:
+        office_store.configure(kind, job_id, config)
+        state = office_store.set_status(kind, 'activating', False, 'Starting the background service')
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from None
+    task = asyncio.create_task(automations.activate_office(kind))
+    TASKS.add(task)
+    task.add_done_callback(TASKS.discard)
+    return state
+
+
+@app.post('/api/automations/{kind}/resume', status_code=202)
+async def resume_office_workflow(kind: str):
+    state = office_store.get(kind)
+    if not state:
+        raise HTTPException(404, 'Activate this workflow from a recording first.')
+    return await queue_office_workflow(kind, state['source_job_id'], state['config'])
+
+
+@app.post('/api/automations/{kind}/pause')
+async def pause_office_workflow(kind: str):
+    state = await automations.pause_office(kind)
+    if not state:
+        raise HTTPException(404, 'This workflow is not set up.')
+    return state
+
+
+@app.post('/api/automations/{kind}/open-inbox')
+async def open_workflow_inbox(kind: str):
+    state = office_store.get(kind)
+    if not state or state['source'] != 'files':
+        raise HTTPException(404, 'This workflow has no Inbox folder.')
+    try:
+        path = office_automation.ensure_inbox(kind)
+        action = await asyncio.create_subprocess_exec('/usr/bin/open', str(path))
+        if await action.wait() != 0:
+            raise OSError
+    except (OSError, ValueError):
+        raise HTTPException(500, 'ChonkyTasks could not open this Inbox.') from None
+    return {'opened': True}
 
 
 @app.get("/api/jobs")
