@@ -169,7 +169,10 @@ async def main():
     opp = next((o for o in opps if o.get("id") == args.opp), None)
     proc = json.loads((OUT / "process.json").read_text()) if (OUT / "process.json").exists() else None
     raw = json.loads((OUT / "steps.json").read_text()) if (OUT / "steps.json").exists() else []
-    rules = list(dict.fromkeys(s["narration"] for s in raw if s.get("narration")))
+    # Only lines that could be a rule: "Nice." or "Company number." is narration
+    # of what is on screen, not a reason, and reads oddly as an instruction.
+    rules = [r for r in dict.fromkeys(s["narration"] for s in raw if s.get("narration"))
+             if len(r.split()) >= 5]
 
     global SHEET
     aid = args.opp or "process"
