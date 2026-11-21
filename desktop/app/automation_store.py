@@ -35,6 +35,9 @@ def connection():
             id TEXT PRIMARY KEY, run_id TEXT NOT NULL, draft_id TEXT NOT NULL,
             original_id INTEGER NOT NULL, original_message_id TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'ready', updated_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS meeting_plans (
+            draft_id TEXT PRIMARY KEY, plan TEXT NOT NULL, calendar_id TEXT,
+            event_state TEXT NOT NULL DEFAULT 'planned', event_id TEXT);
         CREATE TABLE IF NOT EXISTS acknowledged_runs (run_id TEXT PRIMARY KEY);
         CREATE TABLE IF NOT EXISTS dismissed_runs (run_id TEXT PRIMARY KEY);
     """)
@@ -90,7 +93,7 @@ def recover_uncertain_drafts():
                           (now(),)).rowcount
 
 
-def record_draft(fingerprint, draft_id, *, run_id=None, original_id=None, original_message_id=None):
+def record_draft(fingerprint, draft_id, *, run_id=None, original_id=None, original_message_id=None, meeting=None):
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
         previous = db.execute("SELECT status FROM messages WHERE fingerprint=?", (fingerprint,)).fetchone()
@@ -99,6 +102,9 @@ def record_draft(fingerprint, draft_id, *, run_id=None, original_id=None, origin
         if run_id and original_id and original_message_id:
             db.execute("INSERT OR IGNORE INTO drafts VALUES (?, ?, ?, ?, ?, 'ready', ?)",
                        (fingerprint, run_id, draft_id, original_id, original_message_id, now()))
+            if meeting:
+                db.execute('INSERT OR IGNORE INTO meeting_plans (draft_id, plan) VALUES (?, ?)',
+                           (fingerprint, json.dumps(meeting)))
         row = db.execute("SELECT data FROM automations WHERE id=?", (AUTOMATION_ID,)).fetchone()
         if row and (not previous or previous[0] != "drafted"):
             state = json.loads(row[0])
@@ -140,7 +146,10 @@ def activity(before=None, limit=50, results_only=False):
         for item in items:
             acknowledged = db.execute('SELECT 1 FROM acknowledged_runs WHERE run_id=?', (item['id'],)).fetchone()
             item['unread'] = bool(not acknowledged and item['finished_at'] and item['finished_at'] > seen_at and (item['status'] in ('failed', 'interrupted') or item['drafted'] > 0))
-            item['drafts'] = [dict(row) for row in db.execute('SELECT id, status FROM drafts WHERE run_id=?', (item['id'],))]
+            item['drafts'] = [dict(row) for row in db.execute("""SELECT d.id,
+                CASE WHEN d.status='sent' AND p.calendar_id IS NOT NULL AND p.event_state!='created'
+                     THEN 'calendar_attention' ELSE d.status END AS status
+                FROM drafts d LEFT JOIN meeting_plans p ON p.draft_id=d.id WHERE d.run_id=?""", (item['id'],))]
         return {'items': items, 'unread_count': unread, 'clearable_count': clearable,
                 'cleared_at': cleared['value'] if cleared else None,
                 'next_before': items[-1]['started_at'] if len(rows) > limit else None}
@@ -165,8 +174,40 @@ def clear_activity():
 def get_draft(draft_id):
     with connection() as db:
         db.row_factory = sqlite3.Row
-        row = db.execute('SELECT * FROM drafts WHERE id=?', (draft_id,)).fetchone()
-        return dict(row) if row else None
+        row = db.execute('''SELECT d.*, p.plan, p.calendar_id, p.event_state, p.event_id
+                            FROM drafts d LEFT JOIN meeting_plans p ON d.id=p.draft_id WHERE d.id=?''', (draft_id,)).fetchone()
+        if not row:
+            return None
+        record = dict(row)
+        record['meeting'] = json.loads(record.pop('plan') or 'null')
+        return record
+
+
+def claim_delivery(draft_id, calendar_id):
+    with connection() as db:
+        db.execute('BEGIN IMMEDIATE')
+        claimed = db.execute("UPDATE drafts SET status='sending', updated_at=? WHERE id=? AND status='ready'",
+                             (now(), draft_id)).rowcount
+        if claimed:
+            db.execute("UPDATE meeting_plans SET calendar_id=?, event_state='pending' WHERE draft_id=?",
+                       (calendar_id, draft_id))
+        return bool(claimed)
+
+
+def calendar_status(draft_id, state, *, expected, event_id=None):
+    with connection() as db:
+        changed = db.execute('UPDATE meeting_plans SET event_state=?, event_id=? WHERE draft_id=? AND event_state=?',
+                             (state, event_id, draft_id, expected)).rowcount == 1
+        if changed and state == 'created':
+            acknowledge_delivery(db, draft_id)
+        return changed
+
+
+def acknowledge_delivery(db, draft_id):
+    db.execute("""INSERT OR IGNORE INTO acknowledged_runs SELECT run_id FROM drafts WHERE id=?
+        AND NOT EXISTS (SELECT 1 FROM drafts pending LEFT JOIN meeting_plans p ON p.draft_id=pending.id
+            WHERE pending.run_id=drafts.run_id AND (pending.status!='sent' OR (p.calendar_id IS NOT NULL AND p.event_state!='created')))
+        AND EXISTS (SELECT 1 FROM runs WHERE runs.id=drafts.run_id AND runs.status='completed')""", (draft_id,))
 
 
 def draft_status(draft_id, status, *, expected=None):
@@ -175,12 +216,11 @@ def draft_status(draft_id, status, *, expected=None):
                              (status, now(), draft_id, expected, expected)).rowcount == 1
         if changed and status == 'sent':
             # Clear only this result, preserving unread failures and other drafts.
-            db.execute("""INSERT OR IGNORE INTO acknowledged_runs SELECT run_id FROM drafts WHERE id=?
-                AND NOT EXISTS (SELECT 1 FROM drafts pending WHERE pending.run_id=drafts.run_id AND pending.status != 'sent')
-                AND EXISTS (SELECT 1 FROM runs WHERE runs.id=drafts.run_id AND runs.status='completed')""", (draft_id,))
+            acknowledge_delivery(db, draft_id)
         return changed
 
 
 def recover_pending_sends():
     with connection() as db:
         db.execute("UPDATE drafts SET status='send_uncertain', updated_at=? WHERE status='sending'", (now(),))
+        db.execute("UPDATE meeting_plans SET event_state='uncertain' WHERE event_state='creating'")

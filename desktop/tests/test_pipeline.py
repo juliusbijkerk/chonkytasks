@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app import main
 from app.analyze import finalize, get_model, resolve_span, validate_step_coverage
+from app.privacy_review import review
 from app.models import Proposal
 from app.video import extract_frames, probe, select_indices
 from app.models import Observations
@@ -105,10 +106,8 @@ def test_screenshot_coverage_rejects_hidden_return_visits_and_missing_frames():
 
 @pytest.mark.parametrize("repair_succeeds", [True, False])
 def test_analysis_repairs_screenshot_coverage_before_making_suggestions(tmp_path, monkeypatch, repair_succeeds):
-    (tmp_path / "frames").mkdir()
-    frames = [{"id": "first", "timestamp": 0}, {"id": "second", "timestamp": 4}]
-    for frame in frames:
-        (tmp_path / "frames" / f"{frame['id']}.jpg").write_bytes(b"mock-image")
+    frames = [{"id": "f0001", "timestamp": 0}, {"id": "f0002", "timestamp": 4}]
+    approval = review_test_frames(tmp_path, frames)
     def observation(frame):
         return {"title": "Visible view", "application": "Mail", "description": "A message is visible.",
                 "start_frame_id": frame, "end_frame_id": frame, "evidence_type": "observed",
@@ -117,9 +116,9 @@ def test_analysis_repairs_screenshot_coverage_before_making_suggestions(tmp_path
     async def fake_complete(content, schema, usage, model, on_progress=None):
         calls.append(schema)
         if schema is Observations:
-            ids = ["first"] if len(calls) == 1 or not repair_succeeds else ["first", "second"]
+            ids = ["f0001"] if len(calls) == 1 or not repair_succeeds else ["f0001", "f0002"]
             if len(calls) == 2:
-                assert "second" in content[-1]["text"]
+                assert "f0002" in content[-1]["text"]
             return Observations.model_validate({"steps": [observation(f) for f in ids], "limitations": []})
         assert calls == [Observations, Observations, Proposal]
         return Proposal.model_validate({"title": "Review messages", "summary": "Two views.",
@@ -127,10 +126,10 @@ def test_analysis_repairs_screenshot_coverage_before_making_suggestions(tmp_path
             "repetition_assessment": "Not established", "occurrences": []}})
     monkeypatch.setattr(analysis_module, "complete", fake_complete)
     updates = []
-    job = {"frames": frames, "metadata": {"duration": 5}, "sample_interval": 1}
+    job = {"frames": frames, "metadata": {"duration": 5}, "sample_interval": 1, "privacy_approval": approval}
     if repair_succeeds:
         report = asyncio.run(analysis_module.analyze(tmp_path, job, lambda **values: updates.append(values)))
-        assert [s["evidence_frame_ids"] for s in report["timeline"]] == [["first"], ["second"]]
+        assert [s["evidence_frame_ids"] for s in report["timeline"]] == [["f0001"], ["f0002"]]
         assert any(update.get("progress") == 67 for update in updates)
     else:
         with pytest.raises(ValueError, match="not described in order"):
@@ -159,12 +158,14 @@ def test_real_video_extraction_and_corrupt_input(tmp_path):
 
 
 def test_retry_reuses_validated_observations_for_the_same_model(tmp_path, monkeypatch):
-    frames = [{"id": "first", "timestamp": 0}, {"id": "second", "timestamp": 4}]
+    frames = [{"id": "f0001", "timestamp": 0}, {"id": "f0002", "timestamp": 4}]
+    approval = review_test_frames(tmp_path, frames)
     steps = [{"title": "Visible view", "application": "Mail", "description": "A message is visible.",
               "start_frame_id": f['id'], "end_frame_id": f['id'], "evidence_type": "observed",
               "confidence": "high", "uncertainty": "None"} for f in frames]
     model = get_model()
     job = {"model": model, "frames": frames, "metadata": {"duration": 5}, "sample_interval": 1,
+           "privacy_approval": approval, "observation_revision": approval['revision'],
            "observations": steps, "observation_model": model,
            "observation_usage": [{"model": model, "completion_tokens": 200}]}
     async def fake_complete(content, schema, usage, model, on_progress=None):
@@ -176,6 +177,14 @@ def test_retry_reuses_validated_observations_for_the_same_model(tmp_path, monkey
     monkeypatch.setattr(analysis_module, 'complete', fake_complete)
     report = asyncio.run(analysis_module.analyze(tmp_path, job, lambda **values: None))
     assert len(report['timeline']) == 2 and report['reused_observations']
+
+
+def review_test_frames(folder, frames):
+    redacted = folder / 'redacted'
+    redacted.mkdir()
+    for frame in frames:
+        (redacted / f"{frame['id']}.jpg").write_bytes(b'\xff\xd8mock-image\xff\xd9')
+    return review(folder, frames, [frame['id'] for frame in frames], '', get_model()).selection()
 
 
 @pytest.fixture

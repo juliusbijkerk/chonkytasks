@@ -67,7 +67,7 @@ document.addEventListener('keydown', (event) => {
 setSidebar(!narrowWindow.matches && desktopSidebarOpen);
 
 function syncNavigation() {
-  for (const [id, active] of [['nav-new', currentView === 'home'], ['nav-recordings', ['library', 'busy', 'report'].includes(currentView)], ['nav-automations', currentView === 'automations'], ['nav-activity', currentView === 'activity']]) {
+  for (const [id, active] of [['nav-new', currentView === 'home'], ['nav-recordings', ['library', 'busy', 'privacy', 'report'].includes(currentView)], ['nav-automations', currentView === 'automations'], ['nav-activity', currentView === 'activity']]) {
     const button = $(`#${id}`);
     button.classList.toggle('active', active);
     if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
@@ -94,7 +94,7 @@ function clearError() { $('#error').hidden = true; }
 function showView(name) {
   if (currentView === 'report' && name !== 'report') $('#report-video')?.pause();
   currentView = name;
-  for (const view of ['home', 'library', 'busy', 'report', 'automations', 'activity']) $(`#${view}-view`).hidden = view !== name;
+  for (const view of ['home', 'library', 'busy', 'privacy', 'report', 'automations', 'activity']) $(`#${view}-view`).hidden = view !== name;
   $('#report-nav').hidden = name !== 'report';
   if (name !== 'report') { reportObserver?.disconnect(); reportJob = null; }
   if (name !== 'busy') busyJob = null;
@@ -281,7 +281,7 @@ async function refreshHistory() {
   historyRequest = loadHistory();
   try { await historyRequest; } finally { historyRequest = null; }
 }
-const jobStatus = (job) => job.status === 'completed' ? 'Done' : job.status === 'failed' ? 'Needs attention' : `Analyzing · ${job.progress}%`;
+const jobStatus = (job) => ({completed: 'Done', failed: 'Needs attention', review: 'Ready to review'}[job.status] || `Preparing · ${job.progress}%`);
 async function loadHistory() {
   try {
     const fresh = await api('/api/jobs');
@@ -349,7 +349,7 @@ function renderBusy(job) {
     batchSignature = signature;
     $('#batch-caption').textContent = `This batch · ${frameIds.length} screenshots`;
     $('#batch-frames').innerHTML = (job.frames || []).filter((frame) => frameIds.includes(frame.id)).map((frame) =>
-      `<figure><img src="${esc(frame.url)}" alt="Screenshot at ${stamp(frame.timestamp)}"><figcaption>${stamp(frame.timestamp)}</figcaption></figure>`).join('');
+      `<figure><img src="${esc(redactedURL(job.id, frame.id))}" alt="Reviewed screenshot at ${stamp(frame.timestamp)}"><figcaption>${stamp(frame.timestamp)}</figcaption></figure>`).join('');
   }
   updateElapsed();
 }
@@ -404,6 +404,7 @@ function receiveJob(job) {
   if (activeJobId !== job.id) return;
   clearError();
   if (job.status === 'completed') { stopWatching(); renderReport(job); refreshHistory(); }
+  else if (job.status === 'review') { stopWatching(); renderPrivacy(job); refreshHistory(); }
   else { renderBusy(job); if (job.status === 'failed') { stopWatching(); refreshHistory(); } }
 }
 function watchJob(id) {
@@ -430,28 +431,130 @@ $('#retry-button').addEventListener('click', async () => {
   finally { $('#retry-button').disabled = false; }
 });
 
+/* ---- Privacy review ---- */
+const redactedURL = (job, frame) => `/api/jobs/${encodeURIComponent(job)}/redacted/${encodeURIComponent(frame)}.jpg`;
+
+function renderPrivacy(job) {
+  showView('privacy'); clearError();
+  $('#view-title').textContent = 'Privacy review';
+  const container = $('#privacy-view');
+  const examples = (job.local_findings || []).reduce((total, item) => total + item.examples.length, 0);
+  const prefix = `/api/jobs/${job.id}/privacy`;
+  container.innerHTML = `<div class="page-heading"><div><h1>Review evidence</h1><p>${esc(recordingName(job))}</p></div></div>
+    <p class="coverage-note">${job.local_evidence_status === 'unavailable' ? 'Local workflow checks were unavailable.' : `${examples} source/result ${examples === 1 ? 'example matched' : 'examples matched'} on this Mac.`}
+    <button class="secondary" id="evidence-local">${job.local_only ? 'Back to local findings' : 'View local findings'}</button></p>
+    ${job.redaction_ready ? `<p>Choose screenshots to share with Mistral through OpenRouter. Solid masks cover detected private areas. Check each image before including it.</p>
+    <div class="privacy-display"><img id="evidence-image" alt="Exact redacted screenshot"><span id="evidence-image-time" class="meta"></span></div>
+    <div class="privacy-grid" id="evidence-frames" aria-label="Redacted screenshots">${job.frames.map(frame => `<div class="privacy-shot"><button class="frame" data-preview="${esc(frame.id)}" aria-label="Preview ${stamp(frame.timestamp)}"><img src="${esc(redactedURL(job.id, frame.id))}" alt="" loading="lazy"><span>${stamp(frame.timestamp)}</span></button><label><input type="checkbox" value="${esc(frame.id)}"> Include ${stamp(frame.timestamp)}</label></div>`).join('')}</div>
+    <label class="privacy-context" for="evidence-context">Context to share (optional)</label><textarea id="evidence-context" rows="3" maxlength="2000" placeholder="Leave out names, account details and other private values"></textarea>
+    <p id="evidence-count" class="meta" role="status"></p>
+    <p class="hint">Mistral analyzes the selected images and context, then uses its observations to suggest workflows. Your original recording stays on this Mac.</p>
+    <div class="dialog-actions"><button class="secondary" id="evidence-check" disabled>Review selection</button><button class="link" id="evidence-download" hidden>Download exact evidence</button><button class="primary" id="evidence-send" hidden>Approve and analyze</button></div>` : `<p role="status">${esc(job.redaction_message || 'Redacted screenshots are unavailable.')}</p>${job.local_only ? '' : '<button class="secondary" id="evidence-retry">Retry privacy review</button>'}`}`;
+  let reviewed = null, inspecting = job.frames[0]?.id, working = false;
+  function changes() {
+    reviewed = null;
+    $('#evidence-download').hidden = true; $('#evidence-send').hidden = true;
+    const count = selection().frame_ids.length;
+    $('#evidence-count').textContent = `${count} of ${job.frames.length} screenshots selected`;
+    $('#evidence-check').disabled = working || count === 0;
+  }
+  function selection() {
+    return {frame_ids: [...container.querySelectorAll('input[type=checkbox]:checked')].map(input => input.value), context: $('#evidence-context').value};
+  }
+  function preview(id) {
+    const frame = job.frames.find(item => item.id === id);
+    if (!frame) return;
+    inspecting = id;
+    const exact = reviewed?.frames.find(item => item.id === id)?.image_url;
+    $('#evidence-image').src = exact || redactedURL(job.id, id);
+    $('#evidence-image-time').textContent = `${stamp(frame.timestamp)}${exact ? ' · Included in the reviewed request' : ''}`;
+  }
+  const request = body => ({method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  $('#evidence-local').addEventListener('click', async () => {
+    if (working) return;
+    try {
+      if (!job.local_only) await api(`${prefix}/local`, {method: 'POST'});
+      await openJob(job.id);
+    } catch (error) { showError(error); }
+  });
+  $('#evidence-retry')?.addEventListener('click', async () => {
+    try { await api(`/api/jobs/${job.id}/retry`, {method: 'POST'}); await openJob(job.id); }
+    catch (error) { showError(error); }
+  });
+  if (!job.redaction_ready) return;
+  $('#evidence-context').value = job.privacy_approval?.context ?? job.context ?? '';
+  $('#evidence-context').addEventListener('input', () => { changes(); preview(inspecting); });
+  $('#evidence-frames').addEventListener('change', () => { changes(); preview(inspecting); });
+  $('#evidence-frames').addEventListener('click', event => {
+    const target = event.target.closest('[data-preview]');
+    if (target) preview(target.dataset.preview);
+  });
+  $('#evidence-check').addEventListener('click', async () => {
+    if (working) return;
+    clearError(); working = true; $('#evidence-check').disabled = true;
+    const localSelection = selection();
+    try {
+      const packet = await api(`${prefix}/preview?exact=true`, request(localSelection));
+      if (currentView !== 'privacy' || activeJobId !== job.id || JSON.stringify(localSelection) !== JSON.stringify(selection())) return;
+      reviewed = packet;
+      $('#evidence-download').hidden = false; $('#evidence-send').hidden = false;
+      $('#evidence-count').textContent = `${packet.frames.length} redacted screenshots ready for approval`;
+      preview(packet.frame_ids.includes(inspecting) ? inspecting : packet.frame_ids[0]);
+      $('#evidence-send').focus();
+    } catch (error) { if (currentView === 'privacy') showError(error); }
+    finally { working = false; if (currentView === 'privacy') $('#evidence-check').disabled = selection().frame_ids.length === 0; }
+  });
+  $('#evidence-download').addEventListener('click', () => {
+    if (!reviewed) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(reviewed, null, 2)], {type: 'application/json'}));
+    const a = document.createElement('a'); a.href = url; a.download = 'chonkytasks-reviewed-evidence.json'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  $('#evidence-send').addEventListener('click', async () => {
+    if (working || !reviewed) return;
+    const {frame_ids, context, revision} = reviewed;
+    clearError(); working = true; $('#evidence-send').disabled = true;
+    try { await api(`${prefix}/approve`, request({frame_ids, context, revision, confirmed: true})); await openJob(job.id); }
+    catch (error) { if (currentView === 'privacy') showError(error); }
+    finally { working = false; if (currentView === 'privacy') $('#evidence-send').disabled = false; }
+  });
+  changes(); preview(inspecting);
+}
+
 /* ---- Report ---- */
 const list = (items, cls = 'clean-list') => `<ul class="${cls}">${items.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>`;
 const seekBtn = (seconds, label) => `<button class="seek" data-seek="${seconds}">${esc(label ?? stamp(seconds))}</button>`;
 
 function renderRecommendation(rec, frames, index) {
   const executable = window.automationUI?.supports(rec);
-  const summary = executable ? 'Checks new meeting requests in Mail and prepares reply drafts using Calendar availability. You review and send.' : rec.summary;
+  const summary = rec.summary;
   return `<article class="suggestion">
     <div class="suggestion-heading"><h3>${esc(rec.title)}</h3><div class="automation-action" data-automation-action="${index}"></div></div>
     <p>${esc(summary)}</p>
     <div class="automation-state" data-automation-state="${index}"></div>
     <details class="automation-details"><summary>View details</summary>
-    ${executable ? `<div class="sub">How it runs</div>${list(['Checks new messages every 30 seconds while this Mac is awake and online.', 'Identifies meeting requests with Mistral and checks your calendar for availability.', 'Proposes weekday slots, 09:00–17:00, within the next two weeks.', 'Saves a reply draft in Mail for you to review and send.'])}<div class="sub">Connected apps</div><p>Mail and Calendar on this Mac · Mistral Workflows</p>` : `<div class="sub">Automate</div>${list(rec.automated_steps)}
+    ${executable ? `<div class="sub">How it runs</div>${list(['Checks new messages every 30 seconds while this Mac is awake and online.', 'Identifies meeting requests and checks your calendar for availability.', 'Prepares an acceptance, the next free weekday slot, or a request for clarification.', 'You review and approve the reply and any calendar event.'])}<div class="sub">Connected apps</div><p>Mail and Calendar on this Mac · Mistral Workflows</p>` : `<div class="sub">Automate</div>${list(rec.automated_steps)}
     ${rec.human_steps.length ? `<div class="sub">Keep manual</div>${list(rec.human_steps)}` : ''}
     ${rec.integrations.length ? `<div class="sub">Connects to</div>${rec.integrations.map((i) => `<div class="integration"><strong>${esc(i.name)}</strong><p>${esc(i.purpose)}</p><small>${esc(i.requirement)}</small></div>`).join('')}` : ''}
     <div class="sub">How to build</div>${list(rec.implementation_steps, 'num-list')}`}
-    <div class="sub">Evidence</div>${rec.evidence_frame_ids.map((id) => seekBtn(frames[id].timestamp)).join(' ')}
+    ${rec.local_example_kind ? '<p class="meta">See the matched examples below.</p>' : `<div class="sub">Evidence</div>${rec.evidence_frame_ids.filter(id => frames[id]).map((id) => seekBtn(frames[id].timestamp)).join(' ')}${evidencePairs(rec.evidence_pairs || [])}`}
     <div class="savings"><strong>${rec.savings.estimated_seconds_per_run === null ? 'No reliable time estimate from this recording' : `~${rec.savings.estimated_seconds_per_run}s saved per run (estimate, not measured)`}</strong>
       ${rec.savings.assumptions.length ? `<ul>${rec.savings.assumptions.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>
     ${rec.assumptions.length ? `<div class="sub">Assumptions to check</div>${list(rec.assumptions)}` : ''}
     </details>
   </article>`;
+}
+
+function evidencePairs(pairs) {
+  return pairs.map((pair, i) => `<div class="source-result"><span>Example ${i + 1}</span>
+    ${seekBtn(pair.source, `View source · ${stamp(pair.source)}`)}${seekBtn(pair.result, `View result · ${stamp(pair.result)}`)}</div>`).join('');
+}
+
+function renderLocalFindings(report) {
+  if (report.local_evidence_status === 'unavailable') return '<p class="coverage-note">Local workflow checks were unavailable.</p>';
+  if (!report.local_findings?.length) return '';
+  return `<div class="local-findings"><h3>Matched on this Mac</h3>${report.local_findings.map(finding => `<article class="suggestion">
+    <h3>${esc(finding.title)}</h3><p>${esc(finding.summary)}</p>${evidencePairs(finding.examples)}</article>`).join('')}</div>`;
 }
 
 // Map every screenshot to a step, then split non-consecutive returns into
@@ -461,6 +564,7 @@ function buildAnalysisSteps(job) {
   const frames = [...job.frames].sort((a, b) => a.timestamp - b.timestamp);
   const visits = [];
   const seen = new Set();
+  const excluded = new Set(job.report.excluded_frame_ids || []);
   for (const frame of frames) {
     const candidates = timeline.map((step, index) => ({step, index})).filter(({step}) =>
       step.evidence_frame_ids ? step.evidence_frame_ids.includes(frame.id) :
@@ -473,8 +577,8 @@ function buildAnalysisSteps(job) {
     } else {
       const revisit = match && seen.has(match.index);
       visits.push({...(match?.step || {}), sourceIndex: match?.index ?? -1,
-        title: match ? (revisit ? `Return to ${match.step.application || 'previous view'}` : match.step.title) : 'Screenshot without a description',
-        description: match?.step.description || 'This screenshot was not described in the saved analysis.',
+        title: match ? (revisit ? `Return to ${match.step.application || 'previous view'}` : match.step.title) : excluded.has(frame.id) ? 'Screenshot kept local' : job.local_only ? 'Local screenshot' : 'Screenshot without a description',
+        description: match?.step.description || (excluded.has(frame.id) ? 'This screenshot was excluded from the model request.' : job.local_only ? 'Use the source and result links to replay confirmed examples.' : 'This screenshot was not described in the saved analysis.'),
         start_seconds: frame.timestamp, end_seconds: frame.timestamp,
         frames: [frame], uncovered: !match, revisit: !!revisit});
       if (match) seen.add(match.index);
@@ -487,18 +591,18 @@ const stepRange = (step) => step.start_seconds === step.end_seconds ? stamp(step
 function renderReport(job) {
   showView('report'); clearError();
   reportJob = job;
-  analysisSteps = buildAnalysisSteps(job);
+  analysisSteps = job.local_only ? [] : buildAnalysisSteps(job);
   selectedStepIndex = -1;
   $('#view-title').textContent = recordingName(job);
   const report = job.report;
   const frames = Object.fromEntries(job.frames.map((f) => [f.id, f]));
   const frameSteps = Object.fromEntries(analysisSteps.flatMap((step, index) => step.frames.map((frame) => [frame.id, index])));
-  const missing = analysisSteps.filter((step) => step.uncovered).length;
+  const missing = job.local_only ? 0 : analysisSteps.filter((step) => step.uncovered).length;
   const wf = report.workflow;
   $('#report-view').innerHTML = `
     <div class="report-head">
       <div><h1>${esc(report.title)}</h1><span class="meta" id="recording-meta">${esc(recordingName(job))} · ${stamp(job.metadata.duration)}</span></div>
-      <div class="report-actions"><a class="link export" href="/api/jobs/${job.id}/export/markdown" download>Export report ↗</a><span id="report-recording-actions">${recordingActions(job)}</span></div>
+      <div class="report-actions">${job.local_only && job.redaction_ready ? '<button class="secondary" id="review-again">Review for Mistral</button>' : ''}<a class="link export" href="/api/jobs/${job.id}/export/markdown" download>Export report ↗</a><span id="report-recording-actions">${recordingActions(job)}</span></div>
     </div>
     <div class="recording-notes" id="saved-notes" hidden></div>
     <section id="report-summary"><h2 class="label">Summary</h2>
@@ -510,30 +614,32 @@ function renderReport(job) {
       <div class="analysis-workspace">
         <div class="video-column">
           <video id="report-video" class="video" src="${esc(job.video_url)}" ${job.frames[0] ? `poster="${esc(job.frames[0].url)}"` : ''} controls preload="metadata" playsinline aria-label="Recording preview"></video>
-          <div class="video-caption"><span id="playback-time">0:00 / ${stamp(job.metadata.duration)}</span><span>${job.frames.length} screenshots</span></div>
-          <div class="frames" aria-label="Screenshots">${job.frames.map((f) => `<button class="frame" data-frame="${esc(f.id)}" data-seek="${f.timestamp}" title="${esc(analysisSteps[frameSteps[f.id]]?.title)} at ${stamp(f.timestamp)}" aria-label="Screenshot at ${stamp(f.timestamp)}, step ${frameSteps[f.id] + 1}"><img src="${esc(f.url)}" alt="Screenshot at ${stamp(f.timestamp)}" loading="lazy"><span>${stamp(f.timestamp)} · Step ${frameSteps[f.id] + 1}</span></button>`).join('')}</div>
+          <div class="video-caption"><span id="playback-time">0:00 / ${stamp(job.metadata.duration)}</span>${job.local_only ? '' : `<span>${job.frames.length} screenshots</span>`}</div>
+          ${job.local_only ? '' : `<div class="frames" aria-label="Screenshots">${job.frames.map((f) => `<button class="frame" data-frame="${esc(f.id)}" data-seek="${f.timestamp}" title="${esc(analysisSteps[frameSteps[f.id]]?.title)} at ${stamp(f.timestamp)}" aria-label="Screenshot at ${stamp(f.timestamp)}, step ${frameSteps[f.id] + 1}"><img src="${esc(f.url)}" alt="Screenshot at ${stamp(f.timestamp)}" loading="lazy"><span>${stamp(f.timestamp)} · Step ${frameSteps[f.id] + 1}</span></button>`).join('')}</div>
           <div class="step-detail" id="step-detail" hidden>
             <div class="step-detail-top"><span class="step-eyebrow" id="step-position"></span><div class="step-controls"><button class="icon-button" id="previous-step" aria-label="Previous step" title="Previous step">‹</button><button class="icon-button" id="next-step" aria-label="Next step" title="Next step">›</button></div></div>
             <h3 id="step-title"></h3><p class="step-description" id="step-description"></p><div class="step-facts" id="step-facts"></div>
             <details class="step-uncertainty" id="step-uncertainty" hidden><summary>Unclear details</summary><p></p></details>
-          </div>
+          </div>`}
         </div>
-        <div class="step-panel">
+        ${job.local_only ? '<div class="step-panel"><div class="step-panel-head"><h2>Local playback</h2></div><p class="coverage-note">Open a source or result below to jump to its moment in the recording.</p></div>' : `<div class="step-panel">
           <div class="step-panel-head"><h2>Analysis steps</h2><span>${analysisSteps.length} steps</span></div>
           <nav class="step-list" id="analysis-step-list" aria-label="Analysis steps">${analysisSteps.map((step, index) => `<button class="analysis-step" data-step="${index}" aria-controls="step-detail"><span class="step-number">${index + 1}</span><span class="step-content"><strong>${esc(step.title)}</strong><small>${stepRange(step)} · ${esc(step.uncovered ? 'Not described' : step.application)}${step.revisit ? ' · Return visit' : ''}</small></span></button>`).join('')}</nav>
           ${missing ? `<p class="coverage-note">${missing} screenshot${missing === 1 ? '' : 's'} without a description in this saved report.</p>` : ''}
-        </div>
+        </div>`}
       </div>
     </section>
     <section id="report-suggestions"><h2 class="label">Automations</h2>
-      ${report.recommendations.length ? report.recommendations.map((r, index) => renderRecommendation(r, frames, index)).join('') : '<div class="empty">No automations identified for this recording.</div>'}
+      ${report.recommendations.map((r, index) => renderRecommendation(r, frames, index)).join('')}
+      ${renderLocalFindings(report)}${!report.recommendations.length && !report.local_findings?.length ? '<div class="empty">No automations identified for this recording.</div>' : ''}
     </section>`;
 
   renderNotes(job);
+  $('#review-again')?.addEventListener('click', () => renderPrivacy(job));
   window.automationUI?.refresh();
   $('#report-view').addEventListener('click', handleReportClick);
-  $('#previous-step').addEventListener('click', () => selectStep(selectedStepIndex - 1, true));
-  $('#next-step').addEventListener('click', () => selectStep(selectedStepIndex + 1, true));
+  $('#previous-step')?.addEventListener('click', () => selectStep(selectedStepIndex - 1, true));
+  $('#next-step')?.addEventListener('click', () => selectStep(selectedStepIndex + 1, true));
   const video = $('#report-video');
   video.addEventListener('timeupdate', syncPlayback);
   video.addEventListener('seeked', syncPlayback);
@@ -618,12 +724,12 @@ async function init() {
   await Promise.all([loadSamples(), refreshHistory(), (async () => {
     try {
       const health = await api('/api/health');
-      const ready = health.configured && health.ffmpeg && !health.error;
+      const ready = health.ffmpeg;
       const el = $('#status');
       el.classList.toggle('bad', !ready);
-      el.innerHTML = `<span class="dot"></span>${ready ? 'Ready' : 'Setup needed'}`;
+      el.innerHTML = `<span class="dot"></span>${ready ? health.configured ? 'Ready' : 'Local mode' : 'Setup needed'}`;
       el.title = `${health.model} · ${ready ? 'API key configured' : 'Configuration incomplete'}`;
-      if (!ready) showError(new Error(health.error || (!health.configured ? 'Add OPENROUTER_API_KEY to .env and restart the app.' : 'FFmpeg is required. Install it and restart the app.')));
+      if (!ready) showError(new Error('FFmpeg is required. Install it and restart the app.'));
     } catch { showError(new Error('Cannot reach the local server.')); }
   })()]);
   const match = location.hash.match(/^#job=([a-f0-9]{32})$/);

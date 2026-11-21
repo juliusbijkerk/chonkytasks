@@ -41,7 +41,7 @@ Open **http://127.0.0.1:8000**. The existing `.env` in this workspace is already
 ## Use
 
 1. Drop an MP4, MOV, WebM, MKV, or M4V recording into the upload area, or select a recent Desktop recording.
-2. Optionally explain the task, then select **Analyze**. Desktop sample buttons start analysis immediately.
+2. Optionally explain the task, then select **Prepare recording**. The app checks the video on this Mac. Choose **View local findings** to stay offline, or inspect the redacted screenshots, include the ones you want to share, and select **Approve and analyze**.
 3. Use the sidebar to switch between a new recording, the searchable recordings list, and recent analyses.
 4. Review Summary, Analysis steps, and Automations. Click a screenshot or numbered step to seek the video and see its description, application, timing, and evidence. Playback follows the current step. Returns to a previous view are shown separately, including in older reports.
 5. Export the report as Markdown. JSON is available from `/api/jobs/<job-id>/export/json`. Reports remain at their `/#job=…` link after restarting the server.
@@ -52,12 +52,13 @@ During analysis, the progress bar animates and shows elapsed time. Four stages s
 
 Model requests stream through OpenRouter. The app shows waiting/receiving/checking/retrying states, elapsed request time, stream update counts, and live output token estimates (marked ≈). Estimates use received text length, not stream chunk count; the final provider usage replaces the estimate with its native token total. Streamed reasoning contributes to the estimate but its text is discarded. Raw response and reasoning text are never sent to the progress UI. Progress updates reach the app through server-sent events with reconnection support.
 
-For meaningful repetition detection, record the same business task 2–3 times over roughly five minutes. Short clips are supported, with explicit evidence limitations. Limits: 500 MB and 130 seconds per recording. Audio is not analyzed; the video preview is silent.
+For meaningful repetition detection, include multiple completed examples in the recording. The local pass matches visible sources to results for six supported workflow types and links them back to playback. Limits are 500 MB and 15 minutes per recording. The video preview is silent.
 
-## Mistral-only pipeline
+## Local evidence and Mistral analysis
 
 - FFmpeg makes a browser-compatible preview and samples screenshots with their actual presentation timestamps. Pillow/NumPy compare pixels to remove consecutive near-duplicates while retaining revisits and periodic coverage. These operations are deterministic; they use no AI models.
-- Up to 72 selected screenshots, at up to 1920 px width, go to the configured Mistral vision model through OpenRouter in batches of 12. The model reconstructs visible activity, uncertainty, and evidence references.
+- The bundled macOS helpers use Apple Vision locally to check for matching source/result pairs and prepare masked JPEGs. The local checks can run without a model API key.
+- Only the screenshots and context selected and approved in privacy review go to the configured Mistral vision model through OpenRouter in batches of 12. Local masking is best-effort. Inspect the actual images before including them. The report marks frames left out of model analysis.
 - Each batch must account for every screenshot exactly once in chronological ranges. Missing screenshots or overlapping steps get one correction attempt; incomplete coverage is rejected rather than silently omitted. Older saved reports are displayed with explicit screenshot-to-step links and marked gaps, without another model call.
 - A second call to the same Mistral model identifies recurring workflows and proposes automations. Pydantic validates the response; the server validates references and derives elapsed spans from screenshot timestamps. Overlapping repeated instances are rejected.
 - `OPENROUTER_MODEL` defaults to `mistralai/mistral-large-4-0`. Non-`mistralai/` model IDs are rejected. Provider routing can change the host serving the same Mistral model, never the model family. There is no fallback to another vendor's model.
@@ -66,7 +67,7 @@ API integration references: [OpenRouter model catalog](https://openrouter.ai/api
 
 ## Storage and scope
 
-The server binds to loopback only. The API key stays on the server. Videos, derived screenshots, reports, and context are stored locally in ignored `data/jobs/`. Selected screenshots, supplied context, and derived observations are sent to OpenRouter/Mistral for processing. No raw recording is uploaded to those services. API calls consume your OpenRouter credits.
+The server binds to loopback only. The API key stays on the server. Videos, screenshots, reports, and context are stored locally in ignored `data/jobs/`. Selected redacted screenshots, reviewed context, and model-derived observations are sent to OpenRouter/Mistral after approval. The raw recording stays on this Mac. API calls consume your OpenRouter credits.
 
 This is a single-user local application, not an authenticated deployment. Do not expose the port publicly. To remove stored recordings, stop the app and delete their corresponding `data/jobs/<job-id>/` folders. The source Desktop recordings are never modified.
 
@@ -80,12 +81,12 @@ Once connected, **Activate** starts a separate worker and creates a verified Mis
 
 **Activity** records actual background checks with start time, elapsed time, messages checked, drafts saved, and errors. The **Results & alerts** filter focuses on drafts and failures; the unread badge highlights these without flagging every empty check. Use **Mark all read** to clear the badge, or **Clear notifications** to dismiss finished entries from both activity filters. Clearing persists across restarts, leaves in-progress checks visible, and preserves the underlying run records, draft records, and duplicate-prevention ledger. New checks and results still appear normally. History stays on this Mac for seven days, survives app restarts and recording deletion, and contains no email bodies. Runs interrupted by a worker restart remain in history with the number of drafts already confirmed saved.
 
-Choose **Review reply** in Activity to preview the original email, recipients and proposed reply. **Keep draft** leaves it in Mail. **Send reply** explicitly approves sending the current preview; edits made in Mail require a fresh preview. A confirmed send clears that result's unread notification, while keeping its history and other unread results. Ambiguous send responses are never automatically retried. Drafts with attachments added in Mail must be sent from Mail to preserve those attachments.
+Choose **Review reply** in Activity to preview the original email, recipients and proposed reply. **Keep draft** leaves it in Mail. For an acceptance, choose a calendar and select **Send and add event** to approve both changes. A conflict found before sending leaves the reply in Drafts. If Mail confirms the reply and Calendar needs attention, Activity displays the event separately. Ambiguous sends and saves require verification before any further write. Edits made in Mail require a fresh preview.
 
 - Every 30 seconds, the worker checks messages received in Mail's Inbox after activation/resumption. Existing messages are not processed. It checks up to 10 unprocessed messages per run; an inbox backlog above 500 stops with an explicit error.
 - Mistral Small extracts meeting intent and a proposed time from new message text. Mail content is untrusted data and is never evaluated as code or tool instructions. Calendar event titles are not sent to Mistral.
-- Calendar availability determines proposed weekday slots between 09:00 and 17:00, in the Mac's timezone, within the next 14 days. The duration comes from the request, defaulting to 30 minutes. Ambiguous dates/times produce a clarification draft.
-- The background workflow only creates reply drafts; it never sends email or changes calendar events. The user can review and send from Activity or Mail. The helper verifies the saved body and recipients in Drafts before reporting success. Drafts use a concise English or French template based on the message language.
+- Calendar availability determines weekday slots between 09:00 and 18:00 in the Mac's time zone, within the next 14 days. A free requested time produces an acceptance. A conflict produces the first later free slot on a 15-minute grid. Ambiguous times produce a clarification draft. The duration defaults to 30 minutes.
+- The worker writes reply drafts in Mail. Sending and adding a Calendar event require approval in Activity. The helper verifies the saved body and recipients before reporting a draft. Replies are available in English and French.
 - A local ledger prevents duplicates across retries and restarts. Draft verification tolerates Mail's added whitespace while checking the substantive text. If a save acknowledgement fails, a read-only check looks for the exact new reply by thread, sender, recipient, body and save time. An unconfirmed save still pauses for review and is never blindly repeated. Pause disables local writes even when the cloud pause request fails.
 - Resuming preserves the original inbox boundary and checkpoint, catching up on messages received during a pause or setup failure.
 - A Mail read timeout is recorded in Activity and retried after a two-minute recovery delay. Scheduled runs still occur every 30 seconds; during the delay they log **Waiting for Mail** without piling more requests onto a busy mailbox. Missing permissions and uncertain draft saves still pause for user attention.
@@ -104,6 +105,6 @@ The workflow definition is in `workflows/definitions.py`; `workflows/worker.py` 
 node --check static/app.js
 ```
 
-Tests cover frame selection and revisits, actual video extraction and timestamps, screenshot coverage and correction, Mistral-only enforcement, streamed token accounting and retry limits, progress event cleanup, metadata persistence, evidence validation, duplicate occurrence rejection, upload limits, deletion, failure handling, and local API protections. Tests do not call a paid model API.
+Tests cover reviewed screenshot approval, local workflow evidence, video extraction, provider streaming, meeting approval and calendar recovery. Tests use mocked calls for Mail, Calendar, and the model provider. Set `CHONKYTASKS_SYNTHETIC_VIDEOS` to the generated fixture directory to run the full-video tests with the bundled native helpers. Local development can point at compiled helper executables with `CHONKYTASKS_REDACTOR` and `CHONKYTASKS_EVIDENCE_HELPER`.
 
 The UI is static HTML/CSS/JavaScript served by FastAPI. No frontend build step is needed. `requirements.lock.txt` records the tested dependency versions (Python 3.11+); `requirements.txt` contains compatible ranges for other Python versions. Mistral requests use `low` reasoning effort. Large 4 now supports low/medium/high according to [Mistral’s reasoning documentation](https://docs.mistral.ai/inference/conversations/reasoning); the gateway catalog may still advertise the older preview settings. Each attempt has a six-minute wall-clock timeout and a three-minute read timeout. Truncated responses retry with larger output budgets (16k → 32k → 64k), up to three attempts. Interrupted or invalid responses also have bounded retries. A retry reuses saved screenshot observations when they cover every frame and match the configured model, so a summary failure does not require another vision request.

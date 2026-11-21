@@ -55,6 +55,15 @@ cp -X "$ROOT/macos/AutomationHelper/Info.plist" "$HELPER/Contents/Info.plist"
 osacompile -o "$HELPER/Contents/Resources/Mail.scpt" "$ROOT/macos/AutomationHelper/Mail.applescript"
 codesign --force --timestamp=none --sign "$SIGNING_IDENTITY" "$HELPER"
 
+echo "==> Building local visual redaction helper"
+mkdir -p "$BUNDLE/Contents/Helpers"
+swiftc -O -swift-version 5 -sdk "$SDK" -target "$(uname -m)-apple-macosx13.0" \
+  "$ROOT/macos/VisualReview/"*.swift -o "$BUNDLE/Contents/Helpers/RedactEvidence"
+codesign --force --timestamp=none --sign "$SIGNING_IDENTITY" "$BUNDLE/Contents/Helpers/RedactEvidence"
+swiftc -O -swift-version 5 -sdk "$SDK" -target "$(uname -m)-apple-macosx13.0" \
+  "$ROOT/macos/WorkflowEvidence/"*.swift -o "$BUNDLE/Contents/Helpers/FindWorkflowEvidence"
+codesign --force --timestamp=none --sign "$SIGNING_IDENTITY" "$BUNDLE/Contents/Helpers/FindWorkflowEvidence"
+
 echo "==> Building icon"
 "$PYTHON" "$ROOT/macos/make_icon.py" "$STAGING/chonkytasks.iconset"
 iconutil -c icns "$STAGING/chonkytasks.iconset" -o "$BUNDLE/Contents/Resources/chonkytasks.icns"
