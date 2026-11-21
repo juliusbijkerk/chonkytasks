@@ -24,7 +24,7 @@ Demo video: *(link to submission video)*
 |---|---|---|
 | `pipeline/transcribe.py` | Voxtral (`voxtral-mini-latest`) turns the narrated recording into timestamped text — voice is the only source of *why* | Best use of Voxtral (£250) |
 | `pipeline/observe.py`, `rank.py`, `compile.py` | Mistral Large (vision + reasoning): frames → steps → ranked loops → `skill.json` | Track_01 |
-| Studio Agent "Workday Analyst" | rank/compile run as a Mistral Agent via the Agents/Conversations API (`pipeline/agent.py`) | Agents & Workflows (£500) |
+| Studio Agent via `pipeline/rank_agent.py` | ranking runs as a Mistral Agent (`mistralai-agents`, Agents API with tools) | Agents & Workflows (£500) |
 | `pipeline/run.py` | fixed Playwright interpreter over the agent's JSON — the model never writes code | — |
 
 ## How it works
