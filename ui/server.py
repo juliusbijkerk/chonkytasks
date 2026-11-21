@@ -12,7 +12,7 @@ automating, then run the automation.
 Agents: start at /llms.txt. /api lists every endpoint, /api/report.md is the
 current state as Markdown, /api/state is the same as JSON.
 """
-import json, mimetypes, os, re, shutil, subprocess, sys, threading, time
+import hmac, json, mimetypes, os, re, secrets, shutil, subprocess, sys, threading, time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -360,6 +360,8 @@ def llms_txt():
           "- Only one stage runs at a time. Poll /api/state until job.running is false.",
           "- `observed_minutes` is measured; `projected_hours_per_month` is an extrapolation. Report both.",
           "- Skill actions marked `confirm` save, send or pay. The UI runs with --yes; ask a human before you do.",
+          "- Pipeline and agent runs spend Mistral credit and are capped per day (MAX_RUNS); a 429 means the cap is hit.",
+          "- From another device (HOST=0.0.0.0) every request needs the access code: header `X-Access-Code`, or open the printed `?k=` link once.",
           "", "## In the browser", "",
           "The page exposes `window.chonkytasks` (state(), runStage(name), runAll(), select(id), run({params, headed}), startRecording(), stopRecording()) "
           "and mirrors its state into `<script type=application/json id=agent-state>`. "
@@ -458,9 +460,38 @@ def run_pipeline(plan, video=None):
         PIPE.update(active=False, ended=time.time())
 
 
+# Every pipeline run and agent run spends Mistral credit. A global daily
+# ceiling, checked before anything starts and kept on disk so a restart does
+# not reset it. MAX_RUNS=0 switches spending off without touching the code.
+SPEND = OUT / "spend.json"
+SPEND_LOCK = threading.Lock()
+
+
+def spend_ok(what):
+    limit = int(os.environ.get("MAX_RUNS", "40"))
+    today = time.strftime("%Y-%m-%d")
+    with SPEND_LOCK:
+        d = jload(SPEND, {})
+        count = d.get("count", 0) if d.get("date") == today else 0
+        if count >= limit:
+            return False, (f"daily run cap reached ({count}/{limit}). "
+                           "Set MAX_RUNS higher and restart to allow more.")
+        OUT.mkdir(exist_ok=True)
+        SPEND.write_text(json.dumps({"date": today, "count": count + 1, "last": what}))
+    return True, None
+
+
+# Set when the server is reachable from other devices (HOST is not 127.0.0.1).
+# Requests from this machine never need it.
+ACCESS = None
+
+
 def start_pipeline(plan, video=None):
     if busy():
         return False, "something is still running"
+    ok, err = spend_ok("pipeline")
+    if not ok:
+        return False, err
     JOBS.clear()
     threading.Thread(target=run_pipeline, args=(plan, video), daemon=True).start()
     return True, None
@@ -472,6 +503,22 @@ class H(SimpleHTTPRequestHandler):
 
     def log_message(self, *a):
         pass
+
+    def _allowed(self):
+        """Open on this machine. From any other device, only with the access
+        code: ?k=<code> once (it becomes a cookie), or an X-Access-Code header."""
+        if not ACCESS or self.client_address[0] in ("127.0.0.1", "::1"):
+            return True
+        given = self.headers.get("X-Access-Code", "")
+        for part in self.headers.get("Cookie", "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == "ct_access":
+                given = given or v
+        return bool(given) and hmac.compare_digest(given, ACCESS)
+
+    def _deny(self):
+        return self._json({"error": "access code needed: open the link printed in the "
+                                    "terminal (it ends in ?k=...)"}, 401)
 
     def _json(self, obj, code=200):
         body = json.dumps(obj).encode()
@@ -505,6 +552,16 @@ class H(SimpleHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         q = parse_qs(u.query)
+
+        if ACCESS and q.get("k") and hmac.compare_digest(q["k"][0], ACCESS):
+            # trade the code in the link for a cookie, and drop it from the URL
+            self.send_response(303)
+            self.send_header("Set-Cookie", f"ct_access={ACCESS}; Path=/; HttpOnly; SameSite=Strict")
+            self.send_header("Location", u.path or "/")
+            self.end_headers()
+            return
+        if not self._allowed():
+            return self._deny()
 
         if u.path in ("/llms.txt", "/.well-known/llms.txt"):
             return self._text(llms_txt(), "text/plain; charset=utf-8")
@@ -597,6 +654,8 @@ class H(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         u = urlparse(self.path)
+        if not self._allowed():
+            return self._deny()
 
         if u.path == "/api/upload":
             ctype = self.headers.get("Content-Type", "")
@@ -699,8 +758,8 @@ class H(SimpleHTTPRequestHandler):
             (frames / "manifest.json").write_text(json.dumps(manifest, indent=2))
             (OUT / "source.json").write_text(json.dumps(
                 {"kind": "screenshots", "count": len(manifest)}))
-            start_pipeline([n for n in PIPELINE if n not in ("frames", "transcribe")])
-            return self._json({"ok": True, "frames": len(manifest)})
+            ok, err = start_pipeline([n for n in PIPELINE if n not in ("frames", "transcribe")])
+            return self._json({"ok": ok, "error": err, "frames": len(manifest)})
 
         # Browser recording, streamed in chunks so an hour (or a week) never
         # has to fit in the tab's memory.
@@ -818,6 +877,9 @@ class H(SimpleHTTPRequestHandler):
             pr = AGENT["proc"]
             if pr is not None and pr.poll() is None:
                 return self._json({"error": "an agent is already running"}, 409)
+            ok, err = spend_ok("agent")
+            if not ok:
+                return self._json({"error": err}, 429)
             (OUT / "agents").mkdir(parents=True, exist_ok=True)
             log = (OUT / "agents" / f"{aid}.jsonl").open("w")
             AGENT.update(id=aid, proc=subprocess.Popen(
@@ -864,10 +926,13 @@ if __name__ == "__main__":
     # anyone who can reach it can run the pipeline and agents on your key.
     host = os.environ.get("HOST", "127.0.0.1")
     if host != "127.0.0.1":
+        ACCESS = os.environ.get("ACCESS_CODE") or secrets.token_urlsafe(6)
         try:
             ip = subprocess.run(["ipconfig", "getifaddr", "en0"], capture_output=True,
                                 text=True, timeout=3).stdout.strip()
         except Exception:
             ip = ""
-        print(f"  on your phone (same wifi or hotspot):  http://{ip or '<this-mac-ip>'}:{port}\n")
+        print(f"  on your phone (same wifi or hotspot):  http://{ip or '<this-mac-ip>'}:{port}/?k={ACCESS}")
+        print(f"  other devices need that code; this Mac does not. Runs today are capped at "
+              f"{os.environ.get('MAX_RUNS', '40')} (MAX_RUNS).\n")
     ThreadingHTTPServer((host, port), H).serve_forever()
