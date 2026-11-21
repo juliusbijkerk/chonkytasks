@@ -440,10 +440,12 @@ function renderPrivacy(job) {
   const container = $('#privacy-view');
   const examples = (job.local_findings || []).reduce((total, item) => total + item.examples.length, 0);
   const prefix = `/api/jobs/${job.id}/privacy`;
+  const olderMasks = job.redaction_policy !== 'sensitive-values-v1';
   container.innerHTML = `<div class="page-heading"><div><h1>Review evidence</h1><p>${esc(recordingName(job))}</p></div></div>
     <p class="coverage-note">${job.local_evidence_status === 'unavailable' ? 'Local workflow checks were unavailable.' : `${examples} source/result ${examples === 1 ? 'example matched' : 'examples matched'} on this Mac.`}
     <button class="secondary" id="evidence-local">${job.local_only ? 'Back to local findings' : 'View local findings'}</button></p>
-    ${job.redaction_ready ? `<p>Choose screenshots to share with Mistral through OpenRouter. Solid masks cover detected private areas. Check each image before including it.</p>
+    ${job.redaction_ready ? `<p>Choose screenshots to share with Mistral through OpenRouter. ${olderMasks ? 'Refresh older masks to keep more of the workflow visible.' : 'Black bars cover detected sensitive values.'} Check each image before including it.</p>
+    <div class="privacy-select"><button class="secondary" id="evidence-select-all" type="button">Select all screenshots</button><button class="secondary" id="evidence-clear-all" type="button" disabled>Clear selection</button>${olderMasks ? '<button class="secondary" id="evidence-refresh" type="button">Refresh masks</button>' : ''}</div>
     <div class="privacy-display"><img id="evidence-image" alt="Exact redacted screenshot"><span id="evidence-image-time" class="meta"></span></div>
     <div class="privacy-grid" id="evidence-frames" aria-label="Redacted screenshots">${job.frames.map(frame => `<div class="privacy-shot"><button class="frame" data-preview="${esc(frame.id)}" aria-label="Preview ${stamp(frame.timestamp)}"><img src="${esc(redactedURL(job.id, frame.id))}" alt="" loading="lazy"><span>${stamp(frame.timestamp)}</span></button><label><input type="checkbox" value="${esc(frame.id)}"> Include ${stamp(frame.timestamp)}</label></div>`).join('')}</div>
     <label class="privacy-context" for="evidence-context">Context to share (optional)</label><textarea id="evidence-context" rows="3" maxlength="2000" placeholder="Leave out names, account details and other private values"></textarea>
@@ -451,15 +453,18 @@ function renderPrivacy(job) {
     <p class="hint">Mistral analyzes the selected images and context, then uses its observations to suggest workflows. Your original recording stays on this Mac.</p>
     <div class="dialog-actions"><button class="secondary" id="evidence-check" disabled>Review selection</button><button class="link" id="evidence-download" hidden>Download exact evidence</button><button class="primary" id="evidence-send" hidden>Approve and analyze</button></div>` : `<p role="status">${esc(job.redaction_message || 'Redacted screenshots are unavailable.')}</p>${job.local_only ? '' : '<button class="secondary" id="evidence-retry">Retry privacy review</button>'}`}`;
   let reviewed = null, inspecting = job.frames[0]?.id, working = false;
+  const frameChecks = [...container.querySelectorAll('#evidence-frames input[type=checkbox]')];
   function changes() {
     reviewed = null;
     $('#evidence-download').hidden = true; $('#evidence-send').hidden = true;
     const count = selection().frame_ids.length;
     $('#evidence-count').textContent = `${count} of ${job.frames.length} screenshots selected`;
     $('#evidence-check').disabled = working || count === 0;
+    $('#evidence-select-all').disabled = count === frameChecks.length;
+    $('#evidence-clear-all').disabled = count === 0;
   }
   function selection() {
-    return {frame_ids: [...container.querySelectorAll('input[type=checkbox]:checked')].map(input => input.value), context: $('#evidence-context').value};
+    return {frame_ids: frameChecks.filter(input => input.checked).map(input => input.value), context: $('#evidence-context').value};
   }
   function preview(id) {
     const frame = job.frames.find(item => item.id === id);
@@ -483,8 +488,35 @@ function renderPrivacy(job) {
   });
   if (!job.redaction_ready) return;
   $('#evidence-context').value = job.privacy_approval?.context ?? job.context ?? '';
-  $('#evidence-context').addEventListener('input', () => { changes(); preview(inspecting); });
-  $('#evidence-frames').addEventListener('change', () => { changes(); preview(inspecting); });
+  const refreshMasks = $('#evidence-refresh');
+  refreshMasks?.addEventListener('click', async () => {
+    if (working) return;
+    clearError(); working = true; changes();
+    refreshMasks.disabled = true;
+    refreshMasks.textContent = 'Refreshing masks…';
+    const visible = () => currentView === 'privacy' && activeJobId === job.id && refreshMasks.isConnected;
+    try {
+      const refreshed = await api(`${prefix}/refresh`, {method: 'POST'});
+      if (visible()) {
+        const context = $('#evidence-context').value;
+        renderPrivacy(refreshed);
+        $('#evidence-context').value = context;
+      }
+    } catch (error) { if (visible()) showError(error); }
+    finally {
+      working = false;
+      if (visible()) { refreshMasks.disabled = false; refreshMasks.textContent = 'Refresh masks'; changes(); }
+    }
+  });
+  function updateSelection() { changes(); preview(inspecting); }
+  function setAllScreenshots(checked) {
+    frameChecks.forEach(input => { input.checked = checked; });
+    updateSelection();
+  }
+  $('#evidence-select-all').addEventListener('click', () => setAllScreenshots(true));
+  $('#evidence-clear-all').addEventListener('click', () => setAllScreenshots(false));
+  $('#evidence-context').addEventListener('input', updateSelection);
+  $('#evidence-frames').addEventListener('change', updateSelection);
   $('#evidence-frames').addEventListener('click', event => {
     const target = event.target.closest('[data-preview]');
     if (target) preview(target.dataset.preview);

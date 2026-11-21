@@ -57,7 +57,7 @@
     });
     document.querySelectorAll('[data-chonk-motion]').forEach(element => {
       if (motions.has(element)) return;
-      const hoverTarget = element.closest('.sidebar-brand');
+      const hoverTarget = element.closest('.sidebar-brand, .capture-actions');
       const state = {element, animation: null, visible: false, hovered: hoverTarget?.matches(':hover')};
       motions.set(element, state);
       if (element.dataset.chonkMotion === 'hop' && hoverTarget) {
