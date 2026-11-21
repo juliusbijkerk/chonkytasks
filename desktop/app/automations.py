@@ -8,7 +8,8 @@ import time
 
 import httpx
 
-from . import automation_store as storage, mac_automation as mac
+from . import automation_store as storage, mac_automation as mac, office_store
+from .office_recipes import RECIPES
 
 WORKFLOW_NAME = 'ai-discovery-meeting-replies-v1'
 CHECK_INTERVAL_SECONDS = 30
@@ -19,7 +20,18 @@ LOCK = asyncio.Lock()
 REMOTE_CACHE = None
 
 
+def office_kind(recommendation):
+    kind = recommendation.get('automation_recipe')
+    if kind in RECIPES and recommendation.get('activation_ready') is True and recommendation.get('local_example_kind') == kind:
+        return kind
+    return None
+
+
 def supported(recommendation):
+    return office_kind(recommendation) is not None or meeting_supported(recommendation)
+
+
+def meeting_supported(recommendation):
     if 'activation_ready' in recommendation:
         return recommendation['activation_ready'] is True and recommendation.get('automation_recipe') == 'meeting_reply_drafts'
     if recommendation.get('automation_recipe') == 'meeting_reply_drafts':
@@ -63,7 +75,8 @@ async def remote(method, path, *, key=None, allow_missing=False, **kwargs):
 
 
 async def connect(key):
-    if storage.get().get('enabled'):
+    states = [storage.get(), *office_store.states()]
+    if any(state['enabled'] or state['status'] == 'activating' for state in states):
         raise ValueError('Pause the automation before changing its Mistral connection.')
     if key.startswith('sk-or-'):
         raise ValueError('Use a Mistral Studio API key here. An OpenRouter key cannot activate Workflows.')
@@ -101,7 +114,7 @@ async def start_worker():
         # launchd's Background tier throttles Python enough to exceed Temporal's
         # workflow-task deadlines. Standard still runs without a window but keeps
         # normal CPU/IO scheduling for the worker and its heartbeats.
-        'ProcessType': 'Standard', 'EnvironmentVariables': {'DEPLOYMENT_NAME': deployment_name(), 'PYTHONUNBUFFERED': '1'},
+        'ProcessType': 'Standard', 'EnvironmentVariables': {'DEPLOYMENT_NAME': deployment_name(), 'PYTHONUNBUFFERED': '1', 'CHONKYTASKS_WORKER_REVISION': '2'},
         'StandardOutPath': str(log), 'StandardErrorPath': str(log)}
     domain = f'gui/{os.getuid()}'
     if LAUNCH_AGENT.exists() and plistlib.loads(LAUNCH_AGENT.read_bytes()) == payload:
@@ -169,7 +182,7 @@ def check_schedule(result):
 async def activate(job, index):
     async with LOCK:
         recommendations = job.get('report', {}).get('recommendations', [])
-        if index < 0 or index >= len(recommendations) or not supported(recommendations[index]):
+        if index < 0 or index >= len(recommendations) or not meeting_supported(recommendations[index]):
             raise ValueError('This suggestion does not yet have an executable automation.')
         if not await mac.key_configured():
             raise ValueError('Connect Mistral Studio to activate this automation.')
@@ -190,19 +203,7 @@ async def activate(job, index):
             started_at = await start_worker()
             await wait_for_worker(started_at)
             storage.update(message='Scheduling future checks')
-            existing = await remote('GET', '/workflows/schedules/' + schedule_id(), allow_missing=True)
-            if existing:
-                check_schedule(existing)
-                await remote('PATCH', '/workflows/schedules/' + schedule_id(),
-                    json={'schedule': {'intervals': [{'every': f'PT{CHECK_INTERVAL_SECONDS}S'}]}})
-                if existing.get('paused'):
-                    await remote('POST', '/workflows/schedules/' + schedule_id() + '/resume', json={'note': 'Resumed in chonkytasks'})
-            else:
-                await remote('POST', '/workflows/schedules', json=schedule_payload())
-            confirmed = await remote('GET', '/workflows/schedules/' + schedule_id())
-            check_schedule(confirmed)
-            if confirmed.get('paused', True):
-                raise ValueError('Mistral has not activated the schedule. Retry shortly.')
+            confirmed = await ensure_schedule()
             return storage.update(status='active', enabled=True, message='', schedule_id=schedule_id(),
                 deployment_name=deployment_name(), activated_at=state.get('activated_at') or storage.now(),
                 check_interval_seconds=CHECK_INTERVAL_SECONDS,
@@ -218,45 +219,152 @@ async def activate(job, index):
             clear_cache()
 
 
+async def ensure_schedule():
+    path = '/workflows/schedules/' + schedule_id()
+    existing = await remote('GET', path, allow_missing=True)
+    if existing:
+        check_schedule(existing)
+        await remote('PATCH', path, json={'schedule': {'intervals': [{'every': f'PT{CHECK_INTERVAL_SECONDS}S'}]}})
+        if existing.get('paused'):
+            await remote('POST', path + '/resume', json={'note': 'Resumed in chonkytasks'})
+    else:
+        await remote('POST', '/workflows/schedules', json=schedule_payload())
+    confirmed = await remote('GET', path)
+    check_schedule(confirmed)
+    if confirmed.get('paused', True):
+        raise ValueError('Mistral has not activated the schedule. Retry shortly.')
+    return confirmed
+
+
+async def activate_office(kind):
+    async with LOCK:
+        state = office_store.get(kind)
+        if not state or state['status'] != 'activating':
+            return state
+        clear_cache()
+        try:
+            if not await mac.key_configured():
+                raise ValueError('Connect Mistral Studio to activate this workflow.')
+            if state['source'] == 'mail' and not (await mac.call('status'))['mail']:
+                raise ValueError('Connect Mail before activating this workflow.')
+            await remote('GET', '/workflows/workers/whoami')
+            started_at = await start_worker()
+            await wait_for_worker(started_at)
+            office_store.set_status(kind, 'activating', False, 'Scheduling future checks')
+            await ensure_schedule()
+            return office_store.set_enabled(kind, True)
+        except asyncio.CancelledError:
+            office_store.set_status(kind, 'error', False, 'Setup was interrupted. Activate again to finish it.')
+            raise
+        except Exception as error:
+            message = str(error) if isinstance(error, ValueError) else 'Activation could not finish. Retry from ChonkyTasks.'
+            return office_store.set_status(kind, 'error', False, message)
+        finally:
+            clear_cache()
+
+
+async def pause_shared_schedule():
+    path = '/workflows/schedules/' + schedule_id()
+    existing = await remote('GET', path, allow_missing=True)
+    if existing:
+        check_schedule(existing)
+        await remote('POST', path + '/pause', json={'note': 'Paused in chonkytasks'})
+        confirmed = await remote('GET', path)
+        if not confirmed.get('paused'):
+            raise ValueError('Mistral has not confirmed the pause.')
+
+
 async def pause():
     async with LOCK:
-        # Stop local writes even if the remote pause request cannot be delivered.
         storage.update(enabled=False, status='pausing', message='Pausing future checks')
         clear_cache()
         try:
-            existing = await remote('GET', '/workflows/schedules/' + schedule_id(), allow_missing=True)
-            if existing:
-                check_schedule(existing)
-                await remote('POST', '/workflows/schedules/' + schedule_id() + '/pause', json={'note': 'Paused in chonkytasks'})
-                confirmed = await remote('GET', '/workflows/schedules/' + schedule_id())
-                if not confirmed.get('paused'):
-                    raise ValueError('Mistral has not confirmed the pause.')
+            if not any(state['enabled'] for state in office_store.states()):
+                await pause_shared_schedule()
             return storage.update(status='paused', enabled=False, message='')
         except ValueError:
             return storage.update(status='paused_local', enabled=False,
                 message='Paused on this Mac. Reconnect to confirm the pause in Mistral.')
 
 
-async def status():
-    global REMOTE_CACHE
-    state = storage.get()
-    if not state.get('enabled'):
+async def pause_office(kind):
+    async with LOCK:
+        if not office_store.get(kind):
+            return None
+        state = office_store.set_enabled(kind, False)
+        clear_cache()
+        if storage.get()['enabled'] or any(workflow['enabled'] for workflow in office_store.states()):
+            return state
+        try:
+            await pause_shared_schedule()
+        except ValueError:
+            return office_store.set_status(kind, 'paused_local', False,
+                'Paused on this Mac. Reconnect to confirm the pause in Mistral.')
         return state
+
+
+async def schedule_health():
+    global REMOTE_CACHE
     if REMOTE_CACHE and time.monotonic() - REMOTE_CACHE[0] < 15:
-        return {**state, **REMOTE_CACHE[1]}
+        return REMOTE_CACHE[1]
     try:
         schedule = await remote('GET', '/workflows/schedules/' + schedule_id(), allow_missing=True)
         deployment = await remote('GET', '/workflows/deployments/' + deployment_name(), allow_missing=True,
                                   params={'workflow_name': WORKFLOW_NAME})
         if not schedule:
-            return storage.update(status='error', enabled=False, message='The Mistral schedule was removed. Activate again to restore it.')
+            return {'status': 'error', 'enabled': False, 'message': 'The Mistral schedule was removed. Activate again to restore it.'}
         check_schedule(schedule)
         if schedule.get('paused'):
-            return storage.update(status='paused', enabled=False, message='Paused in Mistral Studio.')
-        verified = {'status': 'active' if deployment and deployment.get('is_active') else 'offline',
-                    'message': '' if deployment and deployment.get('is_active') else 'Waiting for the background service on this Mac.',
+            return {'status': 'paused', 'enabled': False, 'message': 'Paused in Mistral Studio.'}
+        online = deployment and deployment.get('is_active')
+        verified = {'status': 'active' if online else 'offline',
+                    'message': '' if online else 'Waiting for the background service on this Mac.',
                     'next_run': (schedule.get('future_executions') or [])[:1]}
     except ValueError:
         verified = {'status': 'unverified', 'message': 'Cannot verify Mistral right now. Last saved activation is preserved.'}
     REMOTE_CACHE = (time.monotonic(), verified)
-    return {**state, **verified}
+    return verified
+
+
+async def status():
+    state = storage.get()
+    if not state.get('enabled'):
+        return state
+    health = await schedule_health()
+    if health.get('enabled') is False:
+        return storage.update(**health)
+    return {**state, **health}
+
+
+async def dashboard():
+    meeting = await status()
+    office = []
+    states = office_store.states()
+    health = await schedule_health() if any(state['enabled'] for state in states) else None
+    for state in states:
+        if state['enabled']:
+            if health.get('enabled') is False:
+                state = office_store.set_status(state['kind'], health['status'], False, health['message'])
+            elif health['status'] != 'active':
+                state = {**state, **health}
+            else:
+                state = {**state, 'check_interval_seconds': CHECK_INTERVAL_SECONDS, 'next_run': health['next_run']}
+        office.append(state)
+    return {**meeting, 'office_workflows': office}
+
+
+async def scan_due_workflows():
+    # The existing Workflows activity only receives the installation's automation ID.
+    # File contents and drafts stay on the Mac. The activity returns only summaries.
+    from .office_automation import scan_enabled
+    from .meeting_automation import scan_inbox
+
+    if not any(state['enabled'] for state in office_store.states()):
+        return await scan_inbox()
+    office = await scan_enabled()
+    try:
+        meeting = await scan_inbox()
+    except Exception:
+        # A failure checking Mail for meetings should not pause unrelated recipes.
+        meeting = {'status': 'failed'}
+    return {'meeting': meeting, 'office': office}

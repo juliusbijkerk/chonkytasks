@@ -63,14 +63,51 @@ def meeting_recommendation(findings: list[dict]) -> dict | None:
     }
 
 
+
+def recipe_recommendations(findings: list[dict]) -> list[dict]:
+    from .office_recipes import RECIPES
+
+    descriptions = {
+        "mailToTask": ("new emails matching a subject prefix you choose", "a follow-up task with its due date"),
+        "mailToNote": ("new emails matching a subject prefix you choose", "a note containing the email details"),
+        "invoiceFiling": ("invoices arriving in its Inbox", "a copy organized by vendor and invoice month"),
+        "spreadsheetReport": ("CSV files arriving in its Inbox", "a report for the status you choose"),
+        "orderDraft": ("order requests arriving in its Inbox", "a structured order draft"),
+    }
+    recommendations = []
+    for finding in findings:
+        kind = finding["kind"]
+        if kind not in RECIPES or len(finding["examples"]) < 2:
+            continue
+        recipe = RECIPES[kind]
+        inputs, output = descriptions[kind]
+        mail = recipe["source"] == "mail"
+        recommendations.append({
+            "automation_recipe": kind, "activation_ready": True, "workflow_source": recipe["source"],
+            "title": recipe["title"],
+            "summary": f"The recording shows this task more than once. ChonkyTasks can turn {inputs} into {output} for approval.",
+            "confidence": "high", "evidence_frame_ids": [], "local_example_kind": kind,
+            "automated_steps": [f"Check for {inputs} every 30 seconds.", f"Prepare {output} on this Mac."],
+            "human_steps": ["Review the source and proposed result in Activity. Approve it to save it."],
+            "implementation_steps": ["Connect Mistral Workflows and set up the source.", "Activate the recurring check."],
+            "integrations": [{"name": "Mail and Mistral Workflows" if mail else "Inbox and Mistral Workflows",
+                              "purpose": "Check for new inputs on this Mac.",
+                              "requirement": "A connected Mail account." if mail else "An app-managed Inbox folder."}],
+            "effort": "small", "savings": {"estimated_seconds_per_run": None, "assumptions": []}, "assumptions": [],
+        })
+    return recommendations
+
+
 def attach(report: dict, job: dict) -> dict:
     local = job.get("local_findings", [])
     report["local_findings"] = local
     report["local_evidence_status"] = job.get("local_evidence_status", "unavailable")
-    recommendation = meeting_recommendation(local)
-    if recommendation:
-        suggestions = [item for item in report["recommendations"] if item.get("automation_recipe") != "meeting_reply_drafts"]
-        report["recommendations"] = [recommendation, *suggestions]
+    meeting = meeting_recommendation(local)
+    proven = ([meeting] if meeting else []) + recipe_recommendations(local)
+    enabled_recipes = {item["automation_recipe"] for item in proven}
+    report["recommendations"] = proven + [
+        item for item in report["recommendations"] if item.get("automation_recipe") not in enabled_recipes
+    ]
     return report
 
 

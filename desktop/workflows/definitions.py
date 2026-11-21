@@ -8,13 +8,13 @@ import mistralai.workflows as workflows
 async def scan_meeting_requests() -> dict:
     # Native and HTTP dependencies belong to the activity, outside the
     # deterministic workflow sandbox.
-    from app.meeting_automation import scan_inbox
-    return await scan_inbox()
+    from app.automations import scan_due_workflows
+    return await scan_due_workflows()
 
 
 @workflows.workflow.define(name='ai-discovery-meeting-replies-v1',
-    workflow_display_name='Meeting reply drafts',
-    workflow_description='Check new messages in Mail against Calendar availability and save drafts for human review.')
+    workflow_display_name='ChonkyTasks workflow checks',
+    workflow_description='Check enabled ChonkyTasks workflows and prepare results for human review on this Mac.')
 class MeetingReplies:
     @workflows.workflow.entrypoint
     async def run(self, automation_id: str) -> dict:

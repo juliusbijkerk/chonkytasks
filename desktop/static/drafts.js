@@ -1,7 +1,7 @@
-/* Preview plain email text safely; only an explicit click can send a reply. */
+/* Preview sources and results before applying an explicit approval. */
 (() => {
   const dialog = $('#draft-dialog');
-  let review = null, sending = false, generation = 0, completionTimer = null;
+  let review = null, workflow = false, sending = false, generation = 0, completionTimer = null;
   function resetCompletion() {
     clearTimeout(completionTimer);
     completionTimer = null;
@@ -37,10 +37,35 @@
     const format = new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'short', timeZone: event.timezone});
     return `${format.format(new Date(event.start * 1000))} to ${format.format(new Date(event.end * 1000))} (${event.timezone})`;
   }
+  function paintWorkflow(send) {
+    const saved = review.status === 'saved';
+    $('#draft-eyebrow').textContent = saved ? 'Saved result' : 'Result to review';
+    $('#draft-title').textContent = window.automationUI?.workflowTitle(review.kind) || 'Workflow result';
+    const sourceName = review.kind.startsWith('mailTo') ? 'Original email' : 'Source file';
+    $('#draft-preview').innerHTML = `<div class="email-preview-grid">
+      <section class="email-original"><h3>${sourceName}</h3><div class="email-envelope">${field('Source', review.source_name)}</div><pre class="email-body workflow-preview">${esc(review.source_preview)}</pre></section>
+      <section class="email-reply"><h3>${saved ? 'Saved output' : 'Proposed output'}</h3><div class="email-envelope">${field('File', review.relative_path)}</div><pre class="email-body workflow-preview">${esc(review.preview)}</pre></section>
+    </div>${saved ? '<button class="secondary workflow-output-action" id="draft-reveal">Show in Finder</button>' : ''}`;
+    $('#draft-reveal')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const current = generation;
+      button.disabled = true;
+      $('#draft-error').hidden = true;
+      try { await api(`/api/workflow-drafts/${encodeURIComponent(review.id)}/reveal`, {method: 'POST'}); }
+      catch (problem) { if (generation === current && dialog.open) error(problem.message || String(problem)); }
+      finally { button.disabled = false; }
+    });
+    $('#draft-help').textContent = saved ? 'Result saved on this Mac.' : 'Approval saves the output shown here on this Mac.';
+    $('#draft-keep').textContent = saved ? 'Done' : 'Keep draft';
+    send.textContent = 'Approve and save';
+    send.hidden = saved;
+    send.disabled = review.status !== 'ready';
+  }
   function paint() {
     const send = $('#draft-send');
     send.disabled = true;
     if (!review) return;
+    if (workflow) { paintWorkflow(send); return; }
     if (review.status === 'sent') { celebrate(); return; }
     if (review.status === 'calendar_attention') {
       const uncertain = ['uncertain', 'creating'].includes(review.event_state);
@@ -77,20 +102,22 @@
     selection?.addEventListener('change', update);
     update();
   }
-  async function open(id) {
+  async function open(id, isWorkflow = false) {
     if (sending) return;
     const current = ++generation;
     resetCompletion();
     review = null;
-    $('#draft-title').textContent = 'Email preview';
+    workflow = isWorkflow;
+    $('#draft-eyebrow').textContent = workflow ? 'Result to review' : 'Reply to review';
+    $('#draft-title').textContent = workflow ? 'Workflow result' : 'Email preview';
     $('#draft-error').hidden = true;
-    $('#draft-preview').innerHTML = '<p class="draft-status">Loading email from Mail…</p>';
-    $('#draft-help').textContent = 'Your reply stays in Drafts until you send it.';
-    $('#draft-send').hidden = false; $('#draft-send').disabled = true; $('#draft-send').textContent = 'Send reply';
+    $('#draft-preview').innerHTML = `<p class="draft-status">${workflow ? 'Loading result…' : 'Loading email from Mail…'}</p>`;
+    $('#draft-help').textContent = workflow ? 'Approval saves the reviewed output on this Mac.' : 'Your reply stays in Drafts until you send it.';
+    $('#draft-send').hidden = false; $('#draft-send').disabled = true; $('#draft-send').textContent = workflow ? 'Approve and save' : 'Send reply';
     $('#draft-keep').textContent = 'Keep draft';
     if (!dialog.open) dialog.showModal();
     try {
-      const data = await api(`/api/drafts/${encodeURIComponent(id)}`);
+      const data = await api(`/api/${workflow ? 'workflow-drafts' : 'drafts'}/${encodeURIComponent(id)}`);
       if (current !== generation || !dialog.open) return;
       review = data; paint();
     } catch (problem) {
@@ -106,21 +133,23 @@
   dialog.addEventListener('click', () => { if (dialog.classList.contains('draft-complete')) close(); });
   dialog.addEventListener('cancel', event => { if (sending) event.preventDefault(); else { generation++; review = null; } });
   document.addEventListener('click', event => {
-    const button = event.target.closest('[data-review-draft]');
-    if (button) open(button.dataset.reviewDraft);
+    const button = event.target.closest('[data-review-draft], [data-review-workflow-draft]');
+    if (button) open(button.dataset.reviewWorkflowDraft || button.dataset.reviewDraft, 'reviewWorkflowDraft' in button.dataset);
   });
   $('#draft-send').addEventListener('click', async () => {
     if (sending || !review || !['ready', 'calendar_attention'].includes(review.status)) return;
     const calendarOnly = review.status === 'calendar_attention';
     const calendar = review.calendars?.find(item => item.id === $('#draft-calendar')?.value);
-    const body = calendarOnly ? {event_revision: review.event_revision, confirmed: true} :
+    const body = workflow ? {revision: review.revision, confirmed: true} : calendarOnly ? {event_revision: review.event_revision, confirmed: true} :
       {revision: review.draft.revision, confirmed: true, calendar_id: calendar?.id, event_revision: calendar?.event_revision};
+    const reviewId = encodeURIComponent(review.id);
+    const url = workflow ? `/api/workflow-drafts/${reviewId}/approve` : `/api/drafts/${reviewId}/${calendarOnly ? 'calendar' : 'send'}`;
     sending = true;
     $('#draft-error').hidden = true;
-    $('#draft-send').disabled = true; $('#draft-send').textContent = calendarOnly ? 'Checking Calendar…' : 'Sending…';
+    $('#draft-send').disabled = true; $('#draft-send').textContent = workflow ? 'Saving…' : calendarOnly ? 'Checking Calendar…' : 'Sending…';
     $('#draft-keep').disabled = true; $('#draft-close').disabled = true;
     try {
-      const result = await api(`/api/drafts/${encodeURIComponent(review.id)}/${calendarOnly ? 'calendar' : 'send'}`, {
+      const result = await api(url, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body)
       });

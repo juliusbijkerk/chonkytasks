@@ -6,9 +6,12 @@ from pathlib import Path
 import sqlite3
 import uuid
 
+from . import office_store
+
 ROOT = Path(__file__).resolve().parent.parent
 DATABASE = ROOT / "data" / "automations.sqlite3"
 AUTOMATION_ID = "meeting-reply-drafts"
+NO_PENDING_OFFICE_REVIEW = "NOT EXISTS (SELECT 1 FROM office_reviews WHERE run_id=runs.id AND status='ready')"
 
 
 def now():
@@ -42,6 +45,7 @@ def connection():
         CREATE TABLE IF NOT EXISTS dismissed_runs (run_id TEXT PRIMARY KEY);
     """)
     try:
+        office_store.prepare_schema(db)
         yield db
         db.commit()
     except BaseException:
@@ -118,10 +122,10 @@ def begin_run(title):
     with connection() as db:
         # Called with the worker's exclusive scan lock, so old running entries
         # belong to an interrupted worker, never a concurrent live scan.
-        db.execute("UPDATE runs SET status='interrupted', finished_at=?, message='The background service restarted before this check finished.' WHERE status='running'", (started,))
+        db.execute("UPDATE runs SET status='interrupted', finished_at=?, message='The background service restarted before this check finished.' WHERE status='running' AND NOT EXISTS (SELECT 1 FROM office_run_ids WHERE run_id=runs.id)", (started,))
         db.execute("INSERT INTO runs (id, started_at, status, title, message) VALUES (?, ?, 'running', ?, 'Checking Mail')", (run_id, started, title))
         cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-        db.execute("DELETE FROM runs WHERE started_at < ? AND status != 'running'", (cutoff,))
+        db.execute(f"DELETE FROM runs WHERE started_at < ? AND status != 'running' AND {NO_PENDING_OFFICE_REVIEW}", (cutoff,))
         db.execute("DELETE FROM dismissed_runs WHERE NOT EXISTS (SELECT 1 FROM runs WHERE runs.id=dismissed_runs.run_id)")
     return run_id
 
@@ -140,7 +144,7 @@ def activity(before=None, limit=50, results_only=False):
         seen = db.execute("SELECT value FROM settings WHERE key='activity_seen_at'").fetchone()
         seen_at = seen['value'] if seen else ''
         unread = db.execute(f"SELECT count(*) FROM runs WHERE {visible} AND finished_at > ? AND (status IN ('failed', 'interrupted') OR drafted > 0) AND NOT EXISTS (SELECT 1 FROM acknowledged_runs WHERE run_id=runs.id)", (seen_at,)).fetchone()[0]
-        clearable = db.execute(f"SELECT count(*) FROM runs WHERE {visible} AND finished_at IS NOT NULL AND status != 'running'").fetchone()[0]
+        clearable = db.execute(f"SELECT count(*) FROM runs WHERE {visible} AND finished_at IS NOT NULL AND status != 'running' AND {NO_PENDING_OFFICE_REVIEW}").fetchone()[0]
         cleared = db.execute("SELECT value FROM settings WHERE key='activity_cleared_at'").fetchone()
         items = [dict(row) for row in rows[:limit]]
         for item in items:
@@ -150,6 +154,10 @@ def activity(before=None, limit=50, results_only=False):
                 CASE WHEN d.status='sent' AND p.calendar_id IS NOT NULL AND p.event_state!='created'
                      THEN 'calendar_attention' ELSE d.status END AS status
                 FROM drafts d LEFT JOIN meeting_plans p ON p.draft_id=d.id WHERE d.run_id=?""", (item['id'],))]
+            kind = office_store.run_kind(db, item['id'])
+            if kind:
+                item['workflow_kind'] = kind
+                item['workflow_drafts'] = office_store.activity_drafts(db, item['id'])
         return {'items': items, 'unread_count': unread, 'clearable_count': clearable,
                 'cleared_at': cleared['value'] if cleared else None,
                 'next_before': items[-1]['started_at'] if len(rows) > limit else None}
@@ -164,8 +172,8 @@ def clear_activity():
     """Dismiss finished notifications without touching runs, drafts, or live checks."""
     with connection() as db:
         db.execute('BEGIN IMMEDIATE')
-        cleared = db.execute("""INSERT OR IGNORE INTO dismissed_runs
-            SELECT id FROM runs WHERE finished_at IS NOT NULL AND status != 'running'""").rowcount
+        cleared = db.execute(f"""INSERT OR IGNORE INTO dismissed_runs
+            SELECT id FROM runs WHERE finished_at IS NOT NULL AND status != 'running' AND {NO_PENDING_OFFICE_REVIEW}""").rowcount
         cleared_at = now()
         db.execute("INSERT OR REPLACE INTO settings VALUES ('activity_cleared_at', ?)", (cleared_at,))
         return {'cleared': cleared, 'cleared_at': cleared_at}

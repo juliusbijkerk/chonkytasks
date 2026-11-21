@@ -9,8 +9,10 @@ import time
 from fastapi.testclient import TestClient
 import pytest
 
-from app import analyze, automation_store, draft_review, mac_automation, main, meeting_automation
+from app import analyze, automations, automation_store, draft_review, mac_automation, main, meeting_automation
+from app import office_automation, office_store, workflow_evidence
 from app.models import Observations, Proposal
+from app.office_recipes import RECIPES
 
 
 @pytest.fixture
@@ -112,10 +114,191 @@ def test_whole_synthetic_video_to_local_report(sandbox, monkeypatch, name, per_k
         assert local['report']['local_evidence_status'] == 'checked'
         if per_kind:
             assert len(kinds) == 6 and all(len(kind['examples']) == per_kind for kind in kinds)
-            assert local['report']['recommendations'][0]['activation_ready']
+            assert [r['automation_recipe'] for r in local['report']['recommendations'] if r['activation_ready']][0] == 'meeting_reply_drafts'
+            assert {r['automation_recipe'] for r in local['report']['recommendations'] if r['activation_ready']} == {
+                'meeting_reply_drafts', 'mailToTask', 'mailToNote', 'invoiceFiling', 'spreadsheetReport', 'orderDraft'}
+            exercise_office_workflows(client, local, monkeypatch)
             assert all(example['source'] < example['result'] for kind in kinds for example in kind['examples'])
         else:
             assert kinds == local['report']['recommendations'] == []
+
+
+def exercise_office_workflows(client, job, monkeypatch):
+    settings = {'mailToTask': {'subject_prefix': '[Follow-up]'}, 'mailToNote': {'subject_prefix': '[Field note]'},
+                'invoiceFiling': {}, 'spreadsheetReport': {'status_filter': 'Settled'}, 'orderDraft': {}}
+    remote_schedule = None
+    created = []
+    pauses = []
+    native_reads = []
+    messages = {}
+
+    async def remote(method, path, **kwargs):
+        nonlocal remote_schedule
+        if path == '/workflows/workers/whoami':
+            assert method == 'GET'
+            return {}
+        if path.startswith('/workflows/deployments/'):
+            assert method == 'GET'
+            return {'is_active': True}
+        if path == '/workflows/schedules':
+            assert method == 'POST' and remote_schedule is None
+            created.append(kwargs['json'])
+            remote_schedule = {'deployment_name': automations.deployment_name(),
+                'workflow_name': automations.WORKFLOW_NAME, 'paused': False}
+            return {}
+        if path.endswith('/pause'):
+            assert method == 'POST'
+            pauses.append(path)
+            remote_schedule['paused'] = True
+        elif path.endswith('/resume'):
+            assert method == 'POST'
+            remote_schedule['paused'] = False
+        elif method == 'PATCH':
+            assert kwargs['json'] == {'schedule': {'intervals': [{'every': 'PT30S'}]}}
+        else:
+            assert method == 'GET'
+        return remote_schedule
+
+    async def native(action, **arguments):
+        native_reads.append(action)
+        if action == 'status':
+            return {'mail': True, 'calendar': False}
+        if action == 'inbox':
+            selected = [mail for mail in messages.values() if mail['received_at'] > arguments['since']]
+            return {'messages': [{key: mail[key] for key in ('id', 'message_id', 'subject', 'received_at')}
+                                 for mail in selected]}
+        if action == 'message':
+            assert arguments['full_body'] is True
+            return messages[arguments['id']]
+        pytest.fail(f'Tried using a real or write-capable Mail operation: {action}')
+
+    async def ready(*_args):
+        return True
+
+    async def verify_settings():
+        return {'connected': True, 'mail': True, 'calendar': False, 'runtime_ready': True}
+
+    monkeypatch.setattr(automations, 'LOCK', asyncio.Lock())
+    monkeypatch.setattr(automations, 'REMOTE_CACHE', None)
+    monkeypatch.setattr(automations, 'remote', remote)
+    monkeypatch.setattr(automations, 'settings', verify_settings)
+    monkeypatch.setattr(automations, 'start_worker', ready)
+    monkeypatch.setattr(automations, 'wait_for_worker', ready)
+    monkeypatch.setattr(mac_automation, 'call', native)
+    monkeypatch.setattr(mac_automation, 'key_configured', ready)
+    indexes = {item['automation_recipe']: i for i, item in enumerate(job['report']['recommendations'])}
+    activation = {'job_id': job['id'], 'recommendation_index': indexes['mailToTask']}
+    assert client.post('/api/automations/activate', json=activation).status_code == 422
+    for kind, config in settings.items():
+        response = client.post('/api/automations/activate', json={
+            'job_id': job['id'], 'recommendation_index': indexes[kind], 'config': config})
+        assert response.status_code == 202, response.text
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        states = client.get('/api/automations').json()['office_workflows']
+        if len(states) == len(settings) and all(state['status'] == 'active' for state in states):
+            break
+        time.sleep(.05)
+    assert {state['kind'] for state in states} == set(settings), states
+    assert all(state['enabled'] and state['status'] == 'active' for state in states), states
+    assert len(created) == 1
+    assert created[0]['schedule']['input'] == {'automation_id': automation_store.AUTOMATION_ID}
+    assert created[0]['schedule']['intervals'] == [{'every': 'PT30S'}]
+
+    received = int(time.time())
+    for index, (subject, sender, body) in enumerate([
+        ('[Follow-up] Inventory', 'Inez Bell <inez@example.test>',
+         'New stock arrived today.\nTask: Recount the cobalt trays\nDue: 2030-09-16'),
+        ('[Field note] Site walk', 'Peter Fox <peter@example.test>',
+         'Three skylights need new seals. Contact the glazing lead next week.'),
+        ('Coffee?', 'Gina Park <gina@example.test>', 'Do you want a latte?'),
+    ], 1):
+        messages[index] = {'id': index, 'message_id': f'fresh-synthetic-{index}@example.test',
+                           'subject': subject, 'sender': sender, 'body': body, 'received_at': received}
+    invoice = b'Invoice: FS-405\nVendor: Fable Timber\nDate: 2030-08-12\nTotal: 421.72 GBP\n'
+    inputs = {'invoiceFiling': ('invoice-fs405.txt', invoice),
+              'spreadsheetReport': ('branch-rollup.csv',
+                  b'Status,Amount\nSettled,4.20\nOpen,900.00\nSETTLED,0.31\nResettled,180.00\n'),
+              'orderDraft': ('fresh-order.txt',
+                  b'Order: TST-204\nCustomer: Whitestone Makers\nSKU: PLN-149\nQuantity: 12\n')}
+    for kind, (name, payload) in inputs.items():
+        (office_automation.inbox_path(kind) / name).write_bytes(payload)
+    # Invoke the body registered with the same worker activity as a scheduled tick.
+    result = client.portal.call(automations.scan_due_workflows)
+    assert {kind: counts['drafted'] for kind, counts in result['office'].items()} == dict.fromkeys(settings, 1)
+    assert result['meeting'] == {'checked': 0, 'drafted': 0, 'status': 'paused'}
+    assert not any(secret in json.dumps(result) for secret in ['Inez', 'Fable', 'Whitestone', 'PLN-149', 'skylights'])
+    assert set(native_reads) == {'status', 'inbox', 'message'}
+
+    activity = '/api/activity?results_only=true'
+    def entries():
+        return {item['workflow_kind']: item['workflow_drafts'][0] for item in client.get(activity).json()['items']
+                if item.get('workflow_drafts')}
+
+    reviews = entries()
+    assert set(reviews) == set(settings)
+    assert client.post('/api/activity/clear').json()['cleared'] == 0
+    assert entries() == reviews
+    outputs = {}
+    for kind, pending in reviews.items():
+        url = f"/api/workflow-drafts/{pending['id']}"
+        reviewed = client.get(url).json()
+        assert reviewed['status'] == 'ready' and reviewed['kind'] == kind and reviewed['source_preview']
+        assert reviewed['preview'] and client.get(url + '/output').status_code == 404
+        library = automation_store.DATABASE.parent / 'workflow-library' / kind
+        assert not any(path.is_file() for path in library.glob('**/*'))
+        approved = {'revision': reviewed['revision'], 'confirmed': True}
+        assert client.post(url + '/approve', json={**approved, 'revision': 'f' * 64}).status_code == 409
+        assert client.post(url + '/approve', json={**approved, 'confirmed': False}).status_code == 422
+        assert client.post(url + '/approve', json=approved, headers={'Origin': 'https://elsewhere.example'}).status_code == 403
+        finalized = client.post(url + '/approve', json=approved)
+        assert finalized.status_code == 200, finalized.text
+        saved = finalized.json()
+        assert saved['status'] == 'saved' and saved['approved_at']
+        assert client.post(url + '/approve', json=approved).json() == saved
+        artifact = client.get(url + '/output')
+        assert artifact.status_code == 200 and artifact.headers['content-disposition'].startswith('attachment;')
+        assert Path(saved['output_path']).read_bytes() == artifact.content
+        outputs[kind] = saved['relative_path'], artifact.content
+    assert b'Recount the cobalt trays' in outputs['mailToTask'][1] and b'2030-09-16' in outputs['mailToTask'][1]
+    assert b'Three skylights need new seals' in outputs['mailToNote'][1] and b'peter@example.test' in outputs['mailToNote'][1]
+    assert outputs['invoiceFiling'] == ('fable-timber/2030-08/invoice-fs405.txt', invoice)
+    assert outputs['spreadsheetReport'][1] == b'Status,Rows,Total\r\nSettled,2,4.51\r\n'
+    assert json.loads(outputs['orderDraft'][1]) == {
+        'order': 'TST-204', 'customer': 'Whitestone Makers', 'sku': 'PLN-149', 'quantity': 12, 'status': 'draft'}
+    assert client.get(activity).json()['unread_count'] == 0
+
+    order_route = '/api/automations/orderDraft'
+    assert client.post(order_route + '/pause').json()['status'] == 'paused' and not pauses
+    (office_automation.inbox_path('orderDraft') / 'next-order.txt').write_bytes(
+        b'Order: TST-205\nCustomer: Finch Boatworks\nSKU: MTS-2\nQuantity: 3\n')
+    next_result = client.portal.call(automations.scan_due_workflows)
+    assert 'orderDraft' not in next_result['office']
+    assert all(not counts['drafted'] for counts in next_result['office'].values())
+    assert client.post(order_route + '/resume').status_code == 202
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and not office_store.get('orderDraft')['enabled']:
+        time.sleep(.05)
+    assert office_store.get('orderDraft')['enabled']
+    next_result = client.portal.call(automations.scan_due_workflows)
+    assert next_result['office']['orderDraft']['drafted'] == 1
+    assert all(not counts['drafted'] for kind, counts in next_result['office'].items() if kind != 'orderDraft')
+    for kind in settings:
+        assert client.post(f'/api/automations/{kind}/pause').json()['status'] == 'paused'
+    assert len(created) == len(pauses) == 1 and remote_schedule['paused']
+
+
+def test_all_office_recipes_run_and_require_approval(sandbox, monkeypatch):
+    # This covers the same scheduler and approval path on machines without the Vision helpers.
+    job = main.new_job('synthetic-office.mp4', '')
+    job.update(status='completed', stage='completed', local_evidence_status='checked', local_findings=[
+        {'kind': kind, 'examples': [{'source': 0, 'result': 1}, {'source': 2, 'result': 3}]}
+        for kind in RECIPES
+    ])
+    job['report'] = workflow_evidence.local_report(job)
+    main.persist(job)
+    with TestClient(main.app) as client:
+        exercise_office_workflows(client, job, monkeypatch)
 
 
 def test_meeting_decisions_follow_the_requested_time():

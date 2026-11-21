@@ -314,8 +314,10 @@ main { max-width: 1240px; margin: 0 auto; padding: 36px 34px 72px; }
 .automation-details { border-top: 1px solid var(--line); padding-top: 14px; }
 .suggestion .automation-details > summary { font-size: 12px; color: var(--muted); }
 .automation-facts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; font-size: 12px; color: var(--muted); }
-.automation-facts span { padding: 4px 8px; border-radius: 5px; background: var(--soft); }
+.automation-facts span { max-width: 100%; padding: 4px 8px; border-radius: 5px; background: var(--soft); overflow-wrap: anywhere; }
 .suggestion .automation-note { font-size: 12px; margin-top: 14px; color: var(--faint); }
+.automation-folder { display: flex; align-items: flex-start; flex-direction: column; gap: 8px; margin-top: 14px; }
+.automation-folder small { color: var(--muted); overflow-wrap: anywhere; }
 .automation-empty { padding: 80px 20px; text-align: center; }
 .automation-empty-mark { font-size: 35px; color: var(--faint); }
 .automation-empty h2 { font-size: 17px; font-weight: 550; margin-top: 12px; }
@@ -334,9 +336,10 @@ main { max-width: 1240px; margin: 0 auto; padding: 36px 34px 72px; }
 .connection-row .link { font-size: 12px; }
 .connection-dialog label { display: block; font-size: 12px; color: var(--muted); margin: 15px 0 6px; }
 .key-input-row { display: flex; gap: 8px; }
-.key-input-row input { width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--glass3); font: inherit; font-size: 12px; }
+.key-input-row input, .workflow-input { width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--glass3); font: inherit; font-size: 12px; }
 .key-input-row .secondary { flex: none; }
 .connection-help { display: block; font-size: 12px; color: var(--muted); margin-top: 9px; line-height: 1.5; }
+#workflow-source-hint { margin-top: 0; }
 .connection-footnote { font-size: 12px; color: var(--muted); margin-top: 18px; line-height: 1.6; }
 .connection-error { font-size: 12px; color: var(--bad); margin-top: 14px; }
 @media (max-width: 760px) {
@@ -415,4 +418,6 @@ main { max-width: 1240px; margin: 0 auto; padding: 36px 34px 72px; }
 .draft-footer .dialog-actions { flex: none; margin: 0; }
 .draft-error { margin: 0 26px 20px; font-size: 12px; color: var(--bad); }
 .draft-status { padding: 30px 26px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.workflow-preview { margin: 0; font-family: inherit; }
+.workflow-output-action { margin: 0 26px 22px; }
 @media (max-width: 650px) { .email-preview-grid { grid-template-columns: 1fr; } .email-original { border-right: 0; border-bottom: 1px solid var(--line); } .draft-footer { flex-wrap: wrap; } .draft-footer .dialog-actions { margin-left: auto; } .email-body { max-height: 28vh; } }
