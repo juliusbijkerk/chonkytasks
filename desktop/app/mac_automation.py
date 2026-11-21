@@ -6,7 +6,8 @@ from pathlib import Path
 import sys
 import tempfile
 
-HELPER = Path.home() / 'Applications/chonkytasks.app/Contents/Library/LoginItems/chonkytasks Automations.app/Contents/MacOS/AutomationHelper'
+DEFAULT_HELPER = Path.home() / 'Applications/chonkytasks.app/Contents/Library/LoginItems/chonkytasks Automations.app/Contents/MacOS/AutomationHelper'
+HELPER = Path(os.environ.get('CHONKYTASKS_AUTOMATION_HELPER', str(DEFAULT_HELPER)))
 ERRORS = {
     'mail_permission': 'Allow chonkytasks Automations to control Mail in System Settings → Privacy & Security → Automation.',
     'calendar_permission': 'Allow calendar access in System Settings → Privacy & Security → Calendars.',
