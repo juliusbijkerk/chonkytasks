@@ -10,6 +10,9 @@ HELPER = Path.home() / 'Applications/chonkytasks.app/Contents/Library/LoginItems
 ERRORS = {
     'mail_permission': 'Allow chonkytasks Automations to control Mail in System Settings → Privacy & Security → Automation.',
     'calendar_permission': 'Allow calendar access in System Settings → Privacy & Security → Calendars.',
+    'calendar_conflict': 'The proposed time is no longer free.',
+    'invalid_calendar': 'The chosen calendar is unavailable or read-only.',
+    'invalid_event': 'The approved event is invalid or has already started.',
     'inbox_backlog': 'There are too many pending messages to scan at once. No messages have been skipped.',
     'mail_error': 'Mail could not complete this action. Open Mail and check that your account is connected.',
     'keychain_error': 'The macOS Keychain could not be accessed. Unlock your login keychain and retry.',

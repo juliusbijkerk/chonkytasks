@@ -20,6 +20,8 @@ REMOTE_CACHE = None
 
 
 def supported(recommendation):
+    if 'activation_ready' in recommendation:
+        return recommendation['activation_ready'] is True and recommendation.get('automation_recipe') == 'meeting_reply_drafts'
     if recommendation.get('automation_recipe') == 'meeting_reply_drafts':
         return True
     # Compatibility for the existing report, without a paid re-analysis.

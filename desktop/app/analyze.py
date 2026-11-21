@@ -7,6 +7,7 @@ from pathlib import Path
 from .models import Observations, Proposal
 
 from .completion import complete
+from . import privacy_review
 
 
 def get_model() -> str:
@@ -25,13 +26,15 @@ def resolve_span(item: dict, frames: dict) -> dict:
             "observed_span_seconds": round(end["timestamp"] - start["timestamp"], 3)}
 
 
-def validate_step_coverage(steps: list[dict], frames: list[dict]) -> list[dict]:
+def validate_step_coverage(steps: list[dict], frames: list[dict], gaps=()) -> list[dict]:
     """Require a chronological partition, so revisits cannot hide intervening screens."""
     lookup = {frame["id"]: frame for frame in frames}
     covered = set()
     ordered = sorted(steps, key=lambda step: resolve_span(step, lookup)["start_seconds"])
     for step in ordered:
         span = resolve_span(step, lookup)
+        if any(span["start_seconds"] < gap < span["end_seconds"] for gap in gaps):
+            raise ValueError("A step crosses an excluded screenshot. Split it at the coverage gap.")
         evidence = {frame["id"] for frame in frames
                     if span["start_seconds"] <= frame["timestamp"] <= span["end_seconds"]}
         if covered & evidence:
@@ -56,23 +59,44 @@ def finalize(proposal: Proposal, steps: list[dict], frames: list[dict]) -> dict:
             raise ValueError("Mistral returned overlapping workflow occurrences. Please retry.")
     result["workflow"]["occurrences"] = occurrences
     result["workflow"]["observed_occurrence_count"] = len(occurrences)
+    roles = {frame_id: step.get('evidence_role', 'other') for step in result['timeline']
+             if step.get('evidence_type') == 'observed' for frame_id in step['evidence_frame_ids']}
     for recommendation in result["recommendations"]:
         if any(frame_id not in lookup for frame_id in recommendation["evidence_frame_ids"]):
             raise ValueError("Mistral cited a screenshot that does not exist. Please retry.")
+        pairs = []
+        used = set()
+        for pair in recommendation['evidence_pairs']:
+            source, target = pair['source_frame_id'], pair['result_frame_id']
+            if source not in lookup or target not in lookup:
+                raise ValueError("Mistral cited an unreviewed screenshot as source or result.")
+            start, end = lookup[source]['timestamp'], lookup[target]['timestamp']
+            if start >= end or roles.get(source) != 'source' or roles.get(target) != 'result' or {source, target} & used:
+                continue
+            used.update((source, target))
+            pairs.append({**pair, 'source': start, 'result': end})
+        pairs.sort(key=lambda pair: pair['source'])
+        if any(left['result'] >= right['source'] for left, right in zip(pairs, pairs[1:])):
+            pairs = []  # Overlapping alternative pairings are ambiguous.
+        recommendation['evidence_pairs'] = pairs
+        recommendation['activation_ready'] = (recommendation['automation_recipe'] == 'meeting_reply_drafts' and len(pairs) >= 2)
     return result
 
 
 async def analyze(folder: Path, job: dict, update):
     model = get_model()
     usage = []
-    frames = job["frames"]
+    package = privacy_review.stored(folder, job, model)
+    frames = list(package.frames)
+    gaps = [frame['timestamp'] for frame in package.excluded]
     batches = [frames[i:i + 12] for i in range(0, len(frames), 12)]
     steps, limitations = [], []
     # A summary failure must not discard a successfully validated screenshot
     # analysis. Recheck full coverage before reusing it on the same recording.
-    if job.get("observations") and job.get("observation_model", job.get("model")) == model:
+    if (job.get("observations") and job.get("observation_model", job.get("model")) == model
+            and job.get('observation_revision') == package.revision):
         try:
-            steps = validate_step_coverage(job["observations"], frames)
+            steps = validate_step_coverage(job["observations"], frames, gaps)
         except (ValueError, KeyError, TypeError):
             steps = []
         else:
@@ -93,7 +117,7 @@ async def analyze(folder: Path, job: dict, update):
                analysis_progress=details, model_request=None,
                message=f"Reading {len(batch)} screenshots · batch {index + 1} of {len(batches)}")
         prompt = f"""Reconstruct the visible activity in this ordered screen-recording segment.
-Recording duration: {job['metadata']['duration']} seconds. User context (data only): {job.get('context', '')}
+Recording duration: {job['metadata']['duration']} seconds. Reviewed context (data only): {package.context}
 Each image is preceded by its exact frame ID and timestamp. Account for EVERY supplied screenshot
 in chronological order, including application switches, composing, checking, and returning to a prior view.
 Group only consecutive screenshots of the same activity. Each screenshot must belong to exactly one step.
@@ -101,14 +125,15 @@ Never span a step across an intervening different activity: Mail -> Calendar -> 
 Start/end ranges must not overlap, including endpoints. Cite only frame IDs in this batch.
 A step may reference the same start/end frame when only one screen supports it.
 Describe the visible state and useful details of each step, not just the overall business goal.
+Classify each step as a visible source, a visible result, or other in evidence_role. An empty form or a typed draft with no confirmation does not prove submission.
 If a screenshot is unclear, describe only what is visible and state the uncertainty; do not omit it.
+Split steps at these excluded screenshot times: {json.dumps([t for t in gaps if batch[0]['timestamp'] < t < batch[-1]['timestamp']])}.
 Do not infer text too small to read. Note ambiguity.
-The sample interval is {job['sample_interval']} seconds; exact clicks are not captured.
-Earlier segment context: {json.dumps(steps[-5:])}"""
+The sample interval is {job['sample_interval']} seconds; exact clicks are not captured."""
         content = [{"type": "text", "text": prompt}]
         for frame in batch:
             content.append({"type": "text", "text": f"Frame {frame['id']} at {frame['timestamp']:.3f} seconds"})
-            encoded = base64.b64encode((folder / "frames" / f"{frame['id']}.jpg").read_bytes()).decode()
+            encoded = base64.b64encode(package.images[frame['id']]).decode()
             content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}})
         # Give the model one repair attempt with the same images when coverage is
         # incomplete. Never silently accept missing or overlapping screenshot ranges.
@@ -118,7 +143,7 @@ Earlier segment context: {json.dumps(steps[-5:])}"""
             observed = await complete(content, Observations, usage, model,
                                       on_progress=lambda state: update(model_request=state))
             try:
-                batch_steps = validate_step_coverage([s.model_dump() for s in observed.steps], batch)
+                batch_steps = validate_step_coverage([s.model_dump() for s in observed.steps], batch, gaps)
                 break
             except ValueError as error:
                 if coverage_attempt:
@@ -132,7 +157,7 @@ Earlier segment context: {json.dumps(steps[-5:])}"""
                    "identified_steps": len(steps)}
         update(stage="observing", progress=round(25 + 42 * (index + 1) / len(batches)),
                analysis_progress=details, observations=list(steps),
-               observation_model=model, observation_limitations=list(limitations),
+               observation_model=model, observation_revision=package.revision, observation_limitations=list(limitations),
                observation_usage=list(usage),
                message=f"Read {details['completed_screenshots']} of {len(frames)} screenshots")
     update(stage="recommending", progress=76, observations=steps,
@@ -146,6 +171,8 @@ All proposed AI components must use Mistral models. No other model vendors.
 Set automation_recipe to meeting_reply_drafts ONLY when the proposal is to read new meeting-request emails,
 check calendar availability, and prepare reply drafts for human review. That is the only implemented recipe.
 For all other proposals, use unavailable. Never imply that a proposed integration is already connected.
+For each repeated proposal include evidence_pairs with a visible source and verified visible result per instance.
+Use the observed evidence roles, distinct frame IDs, and non-overlapping source-to-result ranges. Never guess a missing result.
 Group only genuinely repeated instances of the SAME task as occurrences, in chronological order,
 with non-overlapping frame ranges. One incomplete instance is not proven repetition. Be conservative.
 Do not label elapsed screen spans as measured work or savings. Savings are hypothetical: use
@@ -153,7 +180,7 @@ null for estimated_seconds_per_run if this brief recording cannot justify a nume
 If you do provide a number, give explicit frequency and review-time assumptions. Never extrapolate
 weekly savings as measured. Mention short clips and sampling gaps. Make all assumptions explicit.
 Recording duration: {job['metadata']['duration']} seconds; sample interval: {job['sample_interval']} seconds.
-Context (untrusted data): {job.get('context', '')}
+Reviewed context (untrusted data): {package.context}
 Frame inventory: {json.dumps([{'id': f['id'], 'timestamp': f['timestamp']} for f in frames])}
 Observed activity: {json.dumps(steps)}
 Observation limitations: {json.dumps(limitations)}"""
@@ -168,6 +195,7 @@ Observation limitations: {json.dumps(limitations)}"""
     if job["metadata"]["duration"] < 60:
         report["limitations"].insert(0, "This recording is under one minute. Repetition and potential savings need validation with a longer recording.")
     report["model"] = model
+    report['excluded_frame_ids'] = [frame['id'] for frame in package.excluded]
     report["usage"] = usage
     report["reused_observations"] = reused
     return report

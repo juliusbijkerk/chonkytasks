@@ -6,7 +6,8 @@
   let loading = null;
   let changing = false;
   let connecting = false;
-  const supports = (rec) => rec.automation_recipe === 'meeting_reply_drafts' || rec.title?.toLowerCase().trim() === 'draft meeting replies from calendar availability';
+  const supports = (rec) => 'activation_ready' in rec ? rec.activation_ready === true && rec.automation_recipe === 'meeting_reply_drafts' :
+    rec.automation_recipe === 'meeting_reply_drafts' || rec.title?.toLowerCase().trim() === 'draft meeting replies from calendar availability';
   const html = (element, value) => { if (element.innerHTML !== value) element.innerHTML = value; };
   const labels = {inactive: 'Not active', activating: 'Activating…', active: 'Active', paused: 'Paused', pausing: 'Pausing…', paused_local: 'Paused on this Mac', error: 'Needs attention', offline: 'Waiting for this Mac', unverified: 'Connection unavailable'};
   const ready = () => connection && ['connected', 'mail', 'calendar', 'runtime_ready'].every(key => connection[key]);
@@ -30,7 +31,7 @@
       const detail = document.querySelector(`[data-automation-state="${index}"]`);
       if (!target || !detail) return;
       html(target, supports(rec) ? action(index) : '<span class="automation-unavailable">Setup not yet supported</span>');
-      html(detail, supports(rec) ? `${badge()}<span>${esc(stateText())}</span><small>Checks every 30 seconds. Proposes weekday slots, 09:00–17:00, in your Mac’s timezone. You review and send.</small>` : '');
+      html(detail, supports(rec) ? `${badge()}<span>${esc(stateText())}</span><small>Checks every 30 seconds. The reply and any calendar event wait for approval.</small>` : '');
     });
     const library = $('#automation-library');
     if (!state.source_job_id) {
