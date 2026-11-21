@@ -15,6 +15,7 @@ will read it. That is its entire job.
 One request per host. This is a compatibility check, not a scrape.
 """
 import argparse, json, re, sys
+from collections import Counter
 from pathlib import Path
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
@@ -55,9 +56,15 @@ def probe(page, name, url):
         r["blocked"] = bool(BLOCK.search(body))
         r["login_wall"] = bool(LOGIN.search(body))
         # a job link, by any of the usual ATS shapes
-        r["job_links"] = page.locator(
-            "a[href*='/jobs/'], a[href*='/job/'], a[href*='/o/'], "
-            "a[href*='/opportunities/'], a[href*='gh_jid'], a[href*='/p/']").count()
+        # Count links whose href repeats one shape with an id in it. Every ATS
+        # uses a different path, so matching on literal paths under-reports
+        # badly: Ashby lists 852 jobs under /<company>/<uuid> and scores zero
+        # against a "/jobs/" selector.
+        hrefs = page.eval_on_selector_all(
+            "a[href]", "els=>els.map(e=>e.getAttribute('href')||'')")
+        shapes = Counter(re.sub(r"[0-9a-f]{6,}|\d{3,}", "<id>", h) for h in hrefs)
+        best = [(sh, n) for sh, n in shapes.items() if "<id>" in sh]
+        r["job_links"] = max([n for _, n in best], default=0)
         heads = page.locator("h1, h2, h3")
         r["headings"] = heads.count()
         r["sample"] = " | ".join(
