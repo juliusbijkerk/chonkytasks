@@ -596,3 +596,142 @@ For the first end-to-end "it recorded, it found it, it ran it", the loop needs a
 target with **no login and no bot wall**. From the site probe, that is Dunelm or
 IKEA. A 60 second recording of three price lookups is enough: three passes, one
 loop, one skill, one live replay.
+
+---
+
+## The task to demo: job hunting, but on the boards instead of LinkedIn
+
+```bash
+./pipeline/probe_boards.py
+```
+
+**Not one applicant tracking system blocked us.** No bot wall, no login wall,
+on any of them. Every failure in the run was a wrong company slug on my part.
+
+| source | result |
+|---|---|
+| Greenhouse (`job-boards.greenhouse.io/figma`) | **147 job links**, clean `?gh_jid=` urls |
+| Ashby (`jobs.ashbyhq.com/openai`) | **852 open positions**, `/<company>/<uuid>` |
+| Recruitee, SmartRecruiters | load fine, job links present |
+| Lever, Workable | 404, my slug was wrong, platform not at fault |
+
+Compare the retail probe, where Argos, Next, eBay, Wayfair and John Lewis all
+blocked us outright. The difference is not luck. **A careers page is published
+so that strangers and crawlers will read it. That is its entire purpose.**
+LinkedIn's job listings are the opposite: behind a login, bot-walled, and
+automating them is against their terms.
+
+### So the demo narrative writes itself, from the recording we already have
+
+> We recorded Julius job hunting. The loop it found was: open a posting, read
+> it, log it in a sheet, repeat. He was doing it through LinkedIn, which is
+> login-walled and blocks automation. So we pointed the automation at the
+> public career boards instead, which is where those jobs actually originate.
+> Same loop. Surface that is meant to be read.
+
+That turns "LinkedIn blocks us" from a weakness into the insight.
+
+### Record this, three passes, no logins anywhere
+
+1. Open a company's board (Greenhouse or Ashby)
+2. Open a posting, read title, location, requirements
+3. Log title + location + url
+4. Back, next posting. Repeat three times, then a second company.
+
+**Log into a local file or a plain page, not Google Sheets.** Sheets is a second
+login wall and it will stop the replay dead. The whole point of this task is
+that every surface in it is open by default.
+
+### Why this is the right choice for the jury
+
+- Nothing in the loop needs a credential, so the live replay cannot die on auth
+- It is the actual workflow Julius recorded, not a toy we invented for the demo
+- Recruiters and candidates both do it, so it reads as enterprise and personal
+- The budget argument lands hardest here: a person checks 12 postings and gets
+  bored. The agent checks 50 and ranks them, and the answer changes.
+
+---
+
+## "Does this all still make sense?" It did not. Now it does.
+
+The five loops on screen were mostly junk, and the junk was load-bearing:
+
+```
+#1 Switch to the spreadsheet and type into a cell     27.4h/month   "Biggest win"
+#3 Scroll burst on a page (3 rapid scrolls)           15.8h/month
+#5 Context-switch between Chrome and Sheets   median 0.0s,  4.8h/month
+```
+
+#3 and #5 are not tasks. #5 projects a **zero second** event to 4.8 hours a
+month. The arithmetic was right and the claim was nonsense, and one slide like
+that discredits every honest number beside it.
+
+### Root cause: 25 of the 44 steps were non-events
+
+The vision prompt offered `waited` as an action, so the model used it whenever a
+frame showed someone reading. 57% of the step list carried no information, and
+every repeated pattern the ranker could find was `waited > waited`.
+
+`observe.py` no longer has `waited` in its vocabulary. **If no action is
+visible, emit no step.** Frames where the person was reading are normal and
+they are not events.
+
+| | before | after |
+|---|---|---|
+| steps | 44 | **29** |
+| of which non-events | 25 | **0** |
+| loops found | 5, three of them junk | **1, real** |
+
+### Three more guards in the rankers
+
+- **sub-step rejection**: a loop whose every step is the same action is not a
+  task. Kills "scroll burst" and "alt-tab between apps" by construction.
+- **floor**: median under 2s, or under 15s observed in total, is a blip.
+- **projection withheld**: under 5 minutes observed, there is no monthly figure
+  at all. `projected_hours_per_month` is `null` with a reason in
+  `projection_withheld`. Showing an unreliable number with a caveat is still
+  showing the number, and the number is what people remember.
+
+Also fixed: `measure_loop` matched the step sequence **exactly**, so two passes
+of the same loop that differed by one stray scroll counted as separate one-off
+events. It matches as a subsequence with bounded gaps now.
+
+### What it says today, honestly
+
+```
+Observed 1.9 minutes. 1 loop.
+  opp_02  Research a job posting, then log it into the spreadsheet
+       seen 2x, 0.83 min measured  ->  no monthly figure, recording too short
+
+  dropped: 'Job-page <-> tracking-sheet app switching'  -- every step is 'switched app'
+  dropped: 'Spreadsheet cell hopping while logging'     -- every step is 'clicked'
+  dropped: 'Repeated scrolling through job descriptions' -- every step is 'scrolled'
+```
+
+One real loop, three honest rejections, no invented monthly figure. That is a
+better demo than five fabricated wins, and the rejections are worth showing:
+they are the product refusing to flatter you.
+
+**UI note for whoever owns `ui/`:** `projected_hours_per_month` can now be
+`null`. Show the measured minutes as the headline in that case and put
+`projection_withheld` where the monthly figure would have gone.
+
+### UI: a withheld projection now reads honestly
+
+`projected_hours_per_month` can be `null`. The card then shows **measured
+minutes** as the headline, the badge says "Most time measured" rather than
+"Biggest win", and an amber line gives the reason.
+
+Three bugs found while wiring it up:
+
+- `opps()` sorted on `(projection || 0)`, so once projections were withheld
+  every card sorted as zero and the order silently reversed. It falls back to
+  observed minutes now.
+- The count-up fast path hardcoded `'h'`, so a card measured in minutes would
+  have rendered `0.8h`. It uses `data-s` now.
+- The animated number starts at `0` in the markup, and `whenSeen` does not
+  always fire, so the card could sit at a permanent **"0 min"**. The markup now
+  carries the real value and the animation is decoration.
+
+That last one is the dangerous kind: nothing errors, the layout is perfect, and
+the headline number on your best slide is zero.

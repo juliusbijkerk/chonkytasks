@@ -43,7 +43,15 @@ Each step:
   app           application name as shown
   surface       URL or window title, "" if unreadable
   action        one of: opened, clicked, typed into field, copied, pasted,
-                switched app, scrolled, waited, submitted
+                switched app, scrolled, submitted
+
+                There is deliberately no "waited" and no "nothing happened".
+                If you cannot see an action, EMIT NO STEP for that frame.
+                Frames where the person was reading are normal and they are
+                not events. A step list padded with non-events is worse than
+                a short one: 25 "waited" entries in a 44 step list made every
+                repeated pattern look like "waited > waited", and the loop
+                finder found nothing but noise.
   target        what was acted on, e.g. a field or button label
   value_kind    the KIND of data only (email, company, amount, date, name, id).
                 NEVER copy the actual value. If you see a password or card

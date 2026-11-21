@@ -263,6 +263,15 @@ h2{font-size:32px;margin:0 0 10px;letter-spacing:-.035em;font-weight:680;line-he
 .fi .fs{font-size:12.5px;color:var(--dim);margin-top:1px;overflow:hidden;text-overflow:ellipsis}
 .fi .fx{font:11.5px var(--mono);color:var(--faint);padding-top:3px}
 .fi.pop{animation:rise .5s var(--ease)}
+.fi .again2{opacity:0;border:0;background:var(--line);color:var(--dim);font:600 11.5px var(--sans);
+  padding:3px 10px;border-radius:999px;cursor:pointer;transition:opacity .2s;margin-left:8px}
+.fi:hover .again2,.fi .again2:focus-visible{opacity:1}
+.fi .again2:hover{color:var(--ink);background:var(--glass3)}
+.fi .again2:disabled{display:none}
+.linkbtn{border:0;background:none;color:var(--faint);font:12.5px var(--sans);cursor:pointer;padding:4px 6px}
+.linkbtn:hover{color:var(--ink)}
+.feedlog{background:var(--log-bg);border-radius:14px;padding:12px 14px;margin:10px 0 6px;
+  font:12px/1.6 var(--mono);color:var(--log-ink);max-height:240px;overflow:auto;white-space:pre-wrap}
 :root[data-palette="mistral"] .fi .ic{border-radius:4px}
 
 /* ---------- process ---------- */
@@ -297,35 +306,6 @@ details.raw .st{padding:6px 8px;grid-template-columns:44px 120px minmax(0,1fr) 9
 .prov{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--faint);margin:-14px 0 20px}
 .prov i{width:7px;height:7px;border-radius:2px;background:var(--warn)}
 
-/* ---------- pipeline ---------- */
-.pipehead{display:flex;align-items:center;gap:12px;margin:14px 0 12px;flex-wrap:wrap}
-.pipehead h3{margin:0;font-size:15px;font-weight:640;letter-spacing:-.01em}
-.pipehead .muted{margin-right:auto}
-.pipe{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
-.stg{width:100%;height:100%;text-align:left;cursor:pointer;padding:14px 15px 13px;border-radius:18px;
-  display:flex;flex-direction:column;gap:4px;transition:transform .35s var(--ease),background .3s,border-color .3s;
-  border:1.5px solid var(--stroke)}
-.stg:hover:not(:disabled){transform:translateY(-2px);background:var(--glass2)}
-.stg:disabled{cursor:default}
-.stg .n{display:flex;align-items:center;justify-content:space-between;font:600 11px var(--mono);color:var(--faint)}
-.stg .n b{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;transition:.4s var(--ease)}
-.stg .n b svg{width:11px;height:11px;opacity:0;transform:scale(.4);transition:.4s var(--ease)}
-.stg .nm{font-size:13.5px;font-weight:600;letter-spacing:-.01em;line-height:1.3}
-.stg .ct{font-size:12px;color:var(--faint)}
-.stg[data-status=done] .n b{background:var(--ok);border-color:var(--ok);color:#fff}
-.stg[data-status=done] .n b svg{opacity:1;transform:none}
-.stg[data-status=done] .ct{color:var(--ok)}
-.stg[data-status=running]{border-color:transparent;
-  background:linear-gradient(var(--glass3),var(--glass3)) padding-box,
-    conic-gradient(from var(--ang),transparent 0 55%,var(--a1) 75%,var(--a2) 92%,transparent) border-box;
-  animation:ang 1.6s linear infinite}
-.stg[data-status=running] .n b{border-color:var(--a1);border-top-color:transparent;animation:spin .8s linear infinite}
-.stg[data-status=running] .ct{color:var(--atext)}
-.stg[data-status=failed]{border-color:color-mix(in srgb,var(--bad) 55%,transparent);background:var(--bad-soft)}
-.stg[data-status=failed] .n b{background:var(--bad);border-color:var(--bad)}
-.stg[data-status=failed] .ct{color:var(--bad)}
-@keyframes ang{to{--ang:360deg}}
-@keyframes spin{to{transform:rotate(360deg)}}
 details.log{margin-top:14px}
 details.log summary{cursor:pointer;color:var(--faint);font-size:12.5px;list-style:none;display:inline-flex;gap:6px;align-items:center}
 details.log summary::-webkit-details-marker{display:none}
@@ -354,19 +334,35 @@ details.log pre{background:var(--log-bg);border-radius:16px;padding:14px 16px;ma
 code{background:var(--line);padding:2px 7px;border-radius:7px;font:12.5px var(--mono)}
 
 /* ---------- parts ---------- */
-.segs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
-.seg{padding:6px;cursor:pointer;text-align:left;width:100%;
-  transition:transform .4s var(--ease),box-shadow .4s,border-color .3s}
-.seg:hover{transform:translateY(-3px)}
+/* a scrubber-like strip of the whole recording, then the parts top to bottom */
+.strip{display:flex;gap:3px;height:34px;margin:0 0 26px;padding:4px;border-radius:14px}
+.strip button{flex:var(--w) 1 0;min-width:10px;border:0;border-radius:9px;cursor:pointer;padding:0;
+  font:600 11px var(--mono);color:#fff;background:var(--grad);opacity:calc(.45 + var(--o)*.55);
+  transition:opacity .25s,transform .25s var(--ease);overflow:hidden;white-space:nowrap}
+.strip button:hover,.strip button[aria-pressed=true]{opacity:1;transform:translateY(-1px)}
+:root[data-palette="mistral"] .strip button{border-radius:3px}
+.tl{list-style:none;margin:0;padding:0;position:relative}
+.tl::before{content:"";position:absolute;left:19px;top:24px;bottom:24px;width:2px;
+  background:linear-gradient(var(--a1),var(--a2));opacity:.35;border-radius:1px}
+.tl li{position:relative;padding-left:56px;margin-bottom:12px}
+.tl .dot{position:absolute;left:4px;top:22px;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;
+  font:700 13px var(--sans);color:#fff;background:var(--grad);box-shadow:0 0 0 5px var(--bg)}
+:root[data-palette="mistral"] .tl .dot{border-radius:6px}
+.seg{display:grid;grid-template-columns:200px minmax(0,1fr);gap:18px;align-items:center;padding:10px 18px 10px 10px;
+  cursor:pointer;text-align:left;width:100%;transition:transform .4s var(--ease),box-shadow .4s,border-color .3s}
+.seg:hover{transform:translateX(4px)}
 .seg[aria-pressed=true]{border-color:color-mix(in srgb,var(--a1) 60%,transparent);
   box-shadow:0 0 0 4px color-mix(in srgb,var(--a1) 18%,transparent),var(--shadow)}
-.seg .im{display:block;overflow:hidden;border-radius:16px;aspect-ratio:16/10;background:var(--line)}
+.seg .im{display:block;overflow:hidden;border-radius:12px;aspect-ratio:16/10;background:var(--line)}
 .seg img{width:100%;height:100%;object-fit:cover;object-position:top left;display:block;transition:transform .6s var(--ease)}
-.seg:hover img{transform:scale(1.05)}
-.seg .m{display:block;padding:10px 10px 8px}
-.seg .lb{display:block;font-size:14px;font-weight:610;margin-bottom:3px;line-height:1.35;letter-spacing:-.01em}
+.seg:hover img{transform:scale(1.04)}
+.seg .m{display:block;min-width:0}
+.seg .t{display:block;font:12px var(--mono);color:var(--faint);margin-bottom:4px}
+.seg .lb{display:block;font-size:16.5px;font-weight:640;line-height:1.3;letter-spacing:-.015em}
 .seg .lb.none{color:var(--faint);font-weight:500}
-.seg .t{font:11.5px var(--mono);color:var(--faint)}
+.seg .sm{display:block;font-size:13.5px;color:var(--dim);margin-top:4px;line-height:1.5}
+.seg .dur{display:flex;align-items:center;gap:10px;margin-top:10px;font:11.5px var(--mono);color:var(--faint)}
+.seg .dur i{height:5px;border-radius:3px;background:var(--grad);width:calc(var(--w)*100%);min-width:6px;max-width:60%}
 
 /* ---------- steps ---------- */
 .filter{display:flex;align-items:center;gap:10px;margin:-10px 0 18px;font-size:13.5px;color:var(--dim)}
@@ -384,6 +380,7 @@ code{background:var(--line);padding:2px 7px;border-radius:7px;font:12.5px var(--
   background:color-mix(in srgb,var(--a1) 11%,transparent);white-space:nowrap}
 .st .tg{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .st .tg em{color:var(--faint);font-style:normal}
+.st .tg,.pstep,.seg .m,.why,.basis{overflow-wrap:anywhere}
 .cf{display:flex;align-items:center;gap:8px;font:11px var(--mono);color:var(--faint)}
 .cf i{flex:1;height:4px;border-radius:2px;background:var(--line);overflow:hidden;position:relative}
 .cf i::after{content:"";position:absolute;inset:0;width:calc(var(--v)*100%);background:var(--grad);border-radius:1px}
@@ -411,6 +408,8 @@ code{background:var(--line);padding:2px 7px;border-radius:7px;font:12.5px var(--
 .hrs span{font-size:13px;color:var(--dim)}
 .meas{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);font-size:13px;color:var(--dim)}
 .meas b{color:var(--ink);font-weight:600}
+.basis.warn{color:var(--warn,#e8b046);border-left:2px solid var(--warn,#e8b046);
+  padding-left:9px}
 .basis{font-size:12px;color:var(--faint);margin-top:4px}
 .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
 .tag{font-size:11.5px;font-weight:530;border-radius:999px;padding:3px 10px;color:var(--dim);background:var(--line)}
@@ -496,6 +495,8 @@ footer .sp{margin-right:auto}
   .st{grid-template-columns:40px minmax(0,1fr);gap:4px 10px}
   .st .op,.st .tg{grid-column:2} .st .tg{white-space:normal} .st .cf{display:none}
   .quote{margin-left:12px}
+  .seg{grid-template-columns:1fr;gap:12px;padding:8px 8px 14px} .seg .m{padding:0 6px}
+  .tl li{padding-left:42px} .tl::before{left:14px} .tl .dot{left:0;top:12px;width:30px;height:30px}
   .pstep{grid-template-columns:36px minmax(0,1fr);gap:12px;padding:14px} .pthumb{display:none}
   details.raw .st{grid-template-columns:40px minmax(0,1fr)} .feed{padding:16px}
   .act{grid-template-columns:24px minmax(0,1fr);gap:4px 10px}
@@ -581,24 +582,23 @@ html.paused *,html.paused *::before,html.paused *::after{animation-play-state:pa
   <div class="feed glass hide" id="feed">
     <div class="feedhead">
       <b id="jobline" role="status" aria-live="polite"></b><span id="feedMeta"></span>
+      <button class="linkbtn hide" id="logbtn" data-action="toggle-log" aria-expanded="false" aria-controls="log">Show log</button>
       <button class="btn ghost sm hide" id="runall" data-action="run-all">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l11-7z"/></svg><span>Continue</span></button>
     </div>
     <div class="pbar" id="pbar" role="progressbar" aria-label="Pipeline progress" aria-valuemin="0" aria-valuemax="7"><i id="pfill"></i></div>
     <ol class="feedlist" id="feedlist" aria-label="What is happening"></ol>
+    <pre class="feedlog hide" id="log" aria-label="Log"></pre>
   </div>
-  <details class="log" id="logbox"><summary>Pipeline details</summary>
-    <ol class="pipe" id="pipe" aria-label="Pipeline stages"></ol>
-    <pre id="log" class="hide"></pre>
-  </details>
 </section>
 
 <section id="parts" class="rv hide" aria-labelledby="h-parts">
   <div class="eyebrow"><i>2</i>Parts</div>
   <h2 id="h-parts">What the recording is made of</h2>
-  <p class="lede">Split where the screen changed wholesale: a new site, a new app,
-    a new form. Pick a part to see only its steps.</p>
-  <div class="segs" id="segs"></div>
+  <p class="lede">In the order it happened, top to bottom. A new part starts where
+    the screen changed: a new site, a new app, a new form. Pick one to see only its steps.</p>
+  <div class="strip glass" id="strip" role="group" aria-label="Whole recording, split into parts"></div>
+  <ol class="tl" id="segs" aria-label="Parts in order"></ol>
 </section>
 
 <section id="steps" class="rv hide" aria-labelledby="h-steps">
@@ -613,8 +613,9 @@ html.paused *,html.paused *::before,html.paused *::after{animation-play-state:pa
 <section id="opps" class="rv hide" aria-labelledby="h-opps">
   <div class="eyebrow"><i>4</i>Loops</div>
   <h2 id="h-opps">The loops you repeated</h2>
-  <p class="lede">Ranked by time measured in the recording. The monthly figure
-    is an extrapolation from it, and is labelled as one.</p>
+  <p class="lede">Ranked by time measured in the recording. A monthly figure
+    appears only when enough was observed to support one, and is labelled as
+    the extrapolation it is.</p>
   <div class="opps" id="oppl"></div>
 </section>
 
@@ -795,7 +796,7 @@ function feedItems(){
     const running=status==='running';
     it.push({k,status,
       t:status==='done'?doneT(x):status==='skipped'?'No voice in this one, skipped':status==='failed'?`${x.label} failed`:running?VERB[k]:todoT,
-      s:status==='done'?doneS(x):status==='failed'?'Open pipeline details below for the error.':running&&k==='observe'&&(S.steps||[]).length?
+      s:status==='done'?doneS(x):status==='failed'?'The log shows what went wrong.':running&&k==='observe'&&(S.steps||[]).length?
         `${plural(S.steps.length,'action')} so far`:'',
       x:(running||status==='done'||status==='failed')&&x.seconds!=null?fmtSecs(x.seconds):''});
   };
@@ -815,29 +816,19 @@ function renderFeed(){
   items.forEach((x,i)=>{
     let li=list.children[i];
     if(!li){ li=document.createElement('li'); li.className='fi';
-      li.innerHTML=`<span class="ic">${CHECK}</span><span><div class="ft"></div><div class="fs"></div></span><span class="fx"></span>`;
+      li.innerHTML=`<span class="ic">${CHECK}</span><span><div class="ft"></div><div class="fs"></div></span>`+
+        `<span class="fx"><span class="tm"></span>${x.k!=='input'?`<button class="again2" data-stage="${x.k}" data-action="run-stage">Run again</button>`:''}</span>`;
       list.appendChild(li); }
     if(li.dataset.status&&li.dataset.status!==x.status&&x.status!=='todo'){ li.classList.remove('pop'); void li.offsetWidth; li.classList.add('pop'); }
     li.dataset.status=x.status; li.dataset.stage=x.k;
     li.querySelector('.ft').textContent=x.t; li.querySelector('.fs').textContent=x.s||'';
-    li.querySelector('.fs').style.display=x.s?'':'none'; li.querySelector('.fx').textContent=x.x||'';
+    li.querySelector('.fs').style.display=x.s?'':'none'; li.querySelector('.fx .tm').textContent=x.x||'';
+    const ag=li.querySelector('.again2'); if(ag){ ag.disabled=!!(S.job||{}).running||!!R.rec||x.status==='todo';
+      ag.textContent=x.status==='failed'?'Try again':'Run again'; ag.title=`Run only “${x.t}” again`; }
   });
 }
 function renderPipe(){
-  const st=S.stages||[], j=S.job||{}, pipe=$('#pipe');
-  if(pipe.children.length!==st.length){
-    pipe.innerHTML=st.map((s,i)=>`<li><button class="stg glass" data-action="run-stage" data-stage="${s.name}" title="${esc(s.does)}">`+
-      `<span class="n">${String(i+1).padStart(2,'0')}<b>${CHECK}</b></span>`+
-      `<span class="nm">${esc(s.label)}</span><span class="ct"></span></button></li>`).join('');
-  }
-  st.forEach((s,i)=>{
-    const b=pipe.children[i].firstChild;
-    const ct=s.status==='running'?'running · '+fmtSecs(s.seconds)
-      :s.status==='failed'?'failed, see log':s.count?s.count+' '+s.unit:'not run';
-    b.dataset.status=s.status; b.disabled=!!j.running||!!R.rec;
-    b.querySelector('.ct').textContent=ct;
-    b.setAttribute('aria-label',`${s.label}: ${ct}. Run this stage.`);
-  });
+  const st=S.stages||[], j=S.job||{};
   const done=st.filter(s=>s.status==='done'||s.status==='skipped').length, busy=!!j.running;
   const failed=st.find(s=>s.status==='failed');
   $('#pfill').style.width=(st.length?100*(done+(j.running?.5:0))/st.length:0)+'%';
@@ -852,10 +843,15 @@ function renderPipe(){
   renderFeed();
   const showRun=!busy&&!R.rec&&S.has_input&&done<st.length;
   $('#runall').classList.toggle('hide',!showRun); $('#runall').disabled=!showRun;
-  if(j.log&&j.log.length){ const p=$('#log'); p.classList.remove('hide');
-    p.textContent=j.log.join('\n'); p.scrollTop=1e6; }
+  const hasLog=!!(j.log&&j.log.length);
+  $('#logbtn').classList.toggle('hide',!hasLog);
+  if(hasLog){ const p=$('#log'), end=p.scrollTop+p.clientHeight>=p.scrollHeight-8;
+    p.textContent=j.log.join('\n'); if(end) p.scrollTop=1e6; }
 }
-$('#pipe').onclick=e=>{ const b=e.target.closest('[data-stage]'); if(b&&!b.disabled) stage(b.dataset.stage); };
+function showLog(open){ $('#log').classList.toggle('hide',!open); $('#logbtn').setAttribute('aria-expanded',open);
+  $('#logbtn').textContent=open?'Hide log':'Show log'; if(open) $('#log').scrollTop=1e6; }
+$('#logbtn').onclick=()=>showLog($('#log').classList.contains('hide'));
+$('#feedlist').onclick=e=>{ const b=e.target.closest('.again2'); if(b&&!b.disabled) stage(b.dataset.stage); };
 
 async function stage(name){
   const r=await post('/api/stage',{name}); const j=await r.json();
@@ -873,7 +869,7 @@ async function refresh(){
   catch(e){ clearTimeout(timer); timer=setTimeout(refresh,2000); return; }
   const j=S.job||{};
   if(wasRunning&&!j.running){
-    if(j.failed){ toast(`${VERB[j.failed]||j.failed} failed. Open pipeline details.`,true); $('#logbox').open=true; }
+    if(j.failed){ toast(`${VERB[j.failed]||j.failed} failed. The log is open below the steps.`,true); showLog(true); }
     else toast(`All done${S.pipeline&&S.pipeline.seconds?' in '+fmtSecs(S.pipeline.seconds):''}. Scroll down for what we found.`);
   }
   wasRunning=!!j.running;
@@ -911,14 +907,24 @@ function renderSegs(){
   $('#parts').classList.toggle('hide',!segs.length);
   if(!segs.length) return;
   const el=$('#segs');
+  const dur=s=>Math.max(0,(s.end??0)-(s.start??0));
+  const total=segs.reduce((a,s)=>a+dur(s),0)||1, longest=Math.max(...segs.map(dur))||1;
+  setHTML($('#strip'),segs.map((s,i)=>
+    `<button data-part="${esc(s.id)}" aria-pressed="${selSeg===s.id}" style="--w:${Math.max(dur(s),.5)};--o:${dur(s)/longest}" `+
+    `title="${i+1}. ${esc(s.label||s.id)} · ${mmss(s.start)}–${mmss(s.end)}" aria-label="Part ${i+1}: ${esc(s.label||s.id)}">`+
+    `${dur(s)/total>.06?i+1:''}</button>`).join(''));
   if(setHTML(el,segs.map((s,i)=>
-    `<button class="seg glass" style="--i:${i}" data-action="filter-part" data-part="${esc(s.id)}" aria-pressed="${selSeg===s.id}">`+
+    `<li style="--i:${i}"><span class="dot" aria-hidden="true">${i+1}</span>`+
+    `<button class="seg glass" data-action="filter-part" data-part="${esc(s.id)}" aria-pressed="${selSeg===s.id}">`+
     `<span class="im"><img loading="lazy" onerror="this.style.visibility='hidden'" src="/frames/${encodeURIComponent((s.thumb||'').split('/').pop())}" alt="First frame of ${esc(s.label||s.id)}"></span>`+
-    `<span class="m"><span class="lb${s.label?'':' none'}">${esc(s.label||'Unnamed part')}</span>`+
-    `<span class="t">${esc(s.id)} · ${mmss(s.start)}–${mmss(s.end)} · ${s.frame_count} fr</span></span></button>`).join('')))
+    `<span class="m"><span class="t">${mmss(s.start)}–${mmss(s.end)}${s.app?' · '+esc(s.app):''}</span>`+
+    `<span class="lb${s.label?'':' none'}">${esc(s.label||'Unnamed part')}</span>`+
+    (s.summary?`<span class="sm">${esc(s.summary)}</span>`:'')+
+    `<span class="dur"><i style="--w:${dur(s)/longest}"></i>${fmtSecs(dur(s))} · ${s.frame_count} frame${s.frame_count===1?'':'s'}</span>`+
+    `</span></button></li>`).join('')))
     el.classList.add('stagger');
 }
-$('#segs').onclick=e=>{ const b=e.target.closest('[data-part]'); if(b) filterPart(b.dataset.part); };
+$('#segs').onclick=$('#strip').onclick=e=>{ const b=e.target.closest('[data-part]'); if(b) filterPart(b.dataset.part); };
 function filterPart(id){
   selSeg = selSeg===id ? null : id;
   $('#segs').classList.remove('stagger');
@@ -982,7 +988,12 @@ function rowStep(s){
 }
 
 /* ---------------- opportunities ---------------- */
-function opps(){ return [...(S.opportunities||[])].sort((a,b)=>(b.projected_hours_per_month||0)-(a.projected_hours_per_month||0)); }
+/* Sort by the projection when we have one, otherwise by what was actually
+   measured. Sorting on (projection||0) put every loop at zero as soon as the
+   recording was too short to project from, which silently reversed the order. */
+function opps(){ return [...(S.opportunities||[])].sort((a,b)=>
+  (b.projected_hours_per_month ?? b.observed_minutes ?? 0) -
+  (a.projected_hours_per_month ?? a.observed_minutes ?? 0)); }
 
 function renderOpps(){
   const o=opps();
@@ -991,12 +1002,24 @@ function renderOpps(){
   const el=$('#oppl');
   const changed=setHTML(el,o.map((x,i)=>
     `<article class="opp glass" style="--i:${i}" data-opportunity="${esc(x.id)}" aria-current="${!!(sel&&sel.id===x.id)}">`+
-      `<div class="top"><span class="rank">#${i+1}</span>${i===0?'<span class="badge">Biggest win</span>':''}</div>`+
+      `<div class="top"><span class="rank">#${i+1}</span>`+
+        (i===0?`<span class="badge">${x.projection_withheld?'Most time measured':'Biggest win'}</span>`:'')+
+      `</div>`+
       `<h3>${esc(x.title||x.id)}</h3>`+
-      `<div class="hrs"><b class="${i===0?'grad ':''}num" data-v="${x.projected_hours_per_month||0}" data-d="1" data-s="h">0h</b><span>a month, projected</span></div>`+
-      `<div class="meas"><b>${f1(x.observed_minutes)} min</b> measured · seen <b>${x.occurrences||0}×</b>`+
-      ` · ${Math.round(x.median_seconds||0)}s each</div>`+
-      (x.extrapolation_basis?`<div class="basis">${esc(x.extrapolation_basis)}</div>`:'')+
+      /* No projection means the recording was too short to support one. Lead
+         with the measured minutes instead of printing "0h a month", and say
+         plainly why there is no monthly figure. A caveated bad number is still
+         the number people walk away with. */
+      (x.projection_withheld
+        ? `<div class="hrs"><b class="${i===0?'grad ':''}num" data-v="${x.observed_minutes||0}" data-d="1" data-s=" min">${(x.observed_minutes||0).toFixed(1)} min</b>`+
+          `<span>measured in this recording</span></div>`+
+          `<div class="meas">seen <b>${x.occurrences||0}×</b> · ${Math.round(x.median_seconds||0)}s each</div>`
+        : `<div class="hrs"><b class="${i===0?'grad ':''}num" data-v="${x.projected_hours_per_month||0}" data-d="1" data-s="h">${(x.projected_hours_per_month||0).toFixed(1)}h</b><span>a month, projected</span></div>`+
+          `<div class="meas"><b>${f1(x.observed_minutes)} min</b> measured · seen <b>${x.occurrences||0}×</b>`+
+          ` · ${Math.round(x.median_seconds||0)}s each</div>`)+
+      (x.projection_withheld
+        ? `<div class="basis warn">No monthly figure: ${esc(x.projection_withheld)}</div>`
+        : (x.extrapolation_basis?`<div class="basis">${esc(x.extrapolation_basis)}</div>`:''))+
       `<div class="tags"><span class="tag ${esc(x.automatable||'')}">${esc(String(x.automatable||'?').replace(/_/g,' '))}</span>`+
         `<span class="tag">confidence ${x.confidence==null?'?':x.confidence}</span>`+
         (x.blockers||[]).map(b=>`<span class="tag">${esc(b)}</span>`).join('')+
@@ -1007,7 +1030,9 @@ function renderOpps(){
     `</article>`).join(''));
   if(changed){
     el.classList.toggle('stagger',!el._seen);
-    el.querySelectorAll('.num').forEach(n=>el._seen?n.textContent=(+n.dataset.v).toFixed(1)+'h':whenSeen(n,countUp));
+    el.querySelectorAll('.num').forEach(n=>el._seen
+      ?n.textContent=(+n.dataset.v).toFixed(+n.dataset.d||1)+(n.dataset.s||'')
+      :whenSeen(n,countUp));
     el._seen=true;
   }
 }

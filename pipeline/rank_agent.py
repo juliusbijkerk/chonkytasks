@@ -35,6 +35,44 @@ WORKDAYS = 20.0
 # we still show the measured number and mark the projection unreliable.
 MIN_SPAN_MIN = 5.0
 
+MIN_MEDIAN_SECONDS = 2.0    # a loop with no measurable duration is a blip
+MIN_OBSERVED_MINUTES = 0.25 # under 15s measured, there is nothing to stand on
+
+
+def reject(title, actions, median_seconds, observed_minutes, occurrences):
+    """Why this is not an opportunity, or None if it is one.
+
+    These three rejections all came from the first real recording, where the
+    ranker proudly offered "Context-switch between Chrome and Sheets", median
+    0.0 seconds, projected to 4.8 hours a month. The arithmetic was right. The
+    claim was nonsense, and one slide like that discredits every honest number
+    next to it.
+    """
+    if occurrences < 2:
+        return "seen once, so it is not a loop"
+    if median_seconds < MIN_MEDIAN_SECONDS:
+        return f"median {median_seconds}s, too brief to measure or to save"
+    if observed_minutes < MIN_OBSERVED_MINUTES:
+        return f"only {observed_minutes} min of it was observed"
+    kinds = {a for a in actions if a}
+    if len(kinds) <= 1 and len(actions) > 1:
+        return f"every step is '{kinds.pop() if kinds else '?'}', so this is a sub-step, not a task"
+    return None
+
+
+def projection(observed_minutes, span_minutes, workdays):
+    """Hours per month, or None when the recording is too short to claim one.
+
+    Scaling share-of-observed-time to a whole working day assumes the clip is
+    representative of the day. For a 2 minute clip of one task it very much is
+    not: 0.4 min inside 2.3 min becomes "you do this 17% of every working day".
+    """
+    if span_minutes < MIN_SPAN_MIN:
+        return None, (f"only {span_minutes:.1f} min observed. Record at least "
+                      f"{MIN_SPAN_MIN:.0f} minutes before projecting anything.")
+    per_min = observed_minutes / span_minutes
+    return round(per_min * 8 * workdays, 1), None
+
 
 INSTRUCTIONS = """You find repeated loops in a log of observed screen actions.
 
@@ -81,14 +119,29 @@ async def measure_loop(step_indices: list[int]) -> dict:
     except IndexError:
         return {"error": f"index out of range, there are {len(STEPS)} steps"}
 
-    n = len(pattern)
     shape = [a for a, _ in pattern]
+    n = len(shape)
+
+    # Match the pattern as a SUBSEQUENCE with bounded gaps, not as an exact
+    # run. A person doing the same loop twice does not produce identical step
+    # lists: one pass scrolls three times, the next scrolls once, a stray
+    # "waited" lands in the middle. Exact matching saw those as different
+    # loops and reported every real loop as "seen once", which the junk filter
+    # then correctly threw away, leaving nothing at all.
+    gap = max(2, n)          # how many unrelated steps may sit inside one pass
     matches, i = [], 0
-    while i <= len(STEPS) - n:
-        window = [STEPS[j].get("action") for j in range(i, i + n)]
-        if window == shape:
-            matches.append(list(range(i, i + n)))
-            i += n
+    while i < len(STEPS):
+        picked, j, k = [], i, 0
+        while j < len(STEPS) and k < n:
+            if STEPS[j].get("action") == shape[k]:
+                picked.append(j)
+                k += 1
+            elif picked and j - picked[-1] > gap:
+                break
+            j += 1
+        if k == n:
+            matches.append(picked)
+            i = picked[-1] + 1
         else:
             i += 1
 
@@ -161,11 +214,16 @@ async def main():
     for n, o in enumerate(FOUND, 1):
         m = await measure_loop(o.get("step_indices") or [])
         observed = m.get("observed_minutes", 0)
-        if m.get("occurrences", 0) < 2 or o.get("automatable") == "no":
-            print(f"  dropping {o.get('title')!r}: "
-                  f"{'seen once' if m.get('occurrences',0) < 2 else 'not automatable'}")
+        idx = o.get("step_indices") or []
+        acts = [STEPS[i].get("action") for i in idx if 0 <= i < len(STEPS)]
+        why = reject(o.get("title"), acts, m.get("median_seconds", 0), observed,
+                     m.get("occurrences", 0))
+        if why is None and o.get("automatable") == "no":
+            why = "marked not automatable"
+        if why:
+            print(f"  dropped: {str(o.get('title'))[:46]!r} -- {why}")
             continue
-        per_min = observed / span
+        hours, caveat = projection(observed, span, WORKDAYS)
         opps.append({
             "id": f"opp_{n:02d}",
             "title": o.get("title"),
@@ -173,7 +231,8 @@ async def main():
             "occurrences": m.get("occurrences", 0),
             "median_seconds": m.get("median_seconds", 0),
             "observed_minutes": observed,
-            "projected_hours_per_month": round(per_min * 8 * WORKDAYS, 1),
+            "projected_hours_per_month": hours,
+            "projection_withheld": caveat,
             "automatable": o.get("automatable"),
             "blockers": o.get("blockers") or [],
             "why_now": o.get("why_now"),
@@ -181,7 +240,7 @@ async def main():
             "extrapolation_basis": (
                 f"{observed} min of loop inside {span:.1f} min observed, "
                 f"scaled to 8h x {WORKDAYS:.0f} days"),
-            "extrapolation_reliable": span >= MIN_SPAN_MIN,
+            "extrapolation_reliable": hours is not None,
             "measured_by": "measure_loop tool, not the model",
         })
 
@@ -195,8 +254,11 @@ async def main():
               f" minutes before showing them to anyone.\n")
     for o in opps:
         print(f"  {o['id']}  {o['title']}")
+        tail = (f"~{o['projected_hours_per_month']} h/month"
+                if o["projected_hours_per_month"] is not None
+                else "no monthly figure, recording too short")
         print(f"       seen {o['occurrences']}x, {o['observed_minutes']} min measured"
-              f"  ->  ~{o['projected_hours_per_month']} h/month  [{o['automatable']}]")
+              f"  ->  {tail}  [{o['automatable']}]")
     print(f"\n  -> {args.out}")
 
 
