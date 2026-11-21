@@ -918,18 +918,10 @@ function moveInd(){
 addEventListener('resize',moveInd);
 
 /* ---------------- parts: the strip above the process ---------------- */
-function renderSegs(){
-  const segs=S.segments||[], strip=$('#strip');
-  strip.classList.toggle('hide',segs.length<2);
-  if(!segs.length) return;
-  const dur=s=>Math.max(0,(s.end??0)-(s.start??0));
-  const total=segs.reduce((a,s)=>a+dur(s),0)||1, longest=Math.max(...segs.map(dur))||1;
-  setHTML(strip,segs.map((s,i)=>
-    `<button data-part="${esc(s.id)}" aria-pressed="${selSeg===s.id}" style="--w:${Math.max(dur(s),.5)};--o:${dur(s)/longest}" `+
-    `title="${i+1}. ${esc(s.label||s.id)} · ${mmss(s.start)}–${mmss(s.end)} (${fmtSecs(dur(s))})" aria-label="Part ${i+1}: ${esc(s.label||s.id)}">`+
-    `${dur(s)/total>.06?esc(s.label&&dur(s)/total>.25?s.label:String(i+1)):''}</button>`).join(''));
-}
-$('#strip').onclick=e=>{ const b=e.target.closest('[data-part]'); if(b) filterPart(b.dataset.part); };
+function renderSegs(){}   /* the strip is drawn from the process steps, in renderSteps */
+$('#strip').onclick=e=>{ const b=e.target.closest('[data-step]'); if(!b) return;
+  const d=document.querySelector(`details.pstep[data-step="${b.dataset.step}"]`);
+  if(d){ d.open=true; d.scrollIntoView({block:'center',behavior:reduced?'auto':'smooth'}); } };
 function filterPart(id){
   selSeg = selSeg===id ? null : id;
   renderSegs(); renderSteps(); mirror();
@@ -948,9 +940,9 @@ function pstep(st,raw,isNew,i){
   return `<details class="pstep glass${isNew?' new':''}" style="--i:${i}" data-step="${st.n}">`+
     `<summary><span class="pn">${st.n}</span>`+
       (st.frame&&!st.frame_same?`<img class="sshot" loading="lazy" src="${esc(st.frame)}" alt="Screen at step ${st.n}" onerror="this.style.visibility='hidden'">`
-        :st.frame_same?`<span class="same" title="Same screen as the step before">same screen</span>`:'<span></span>')+
+:'<span></span>')+
       `<span class="ptx"><span class="pt">${esc(st.title)}</span>${st.detail?`<span class="pd1">${esc(st.detail)}</span>`:''}</span>`+
-      `<span class="pm">${st.app?`<span class="chip">${esc(st.app)}</span>`:''}<span>${mmss(st.t_start)}</span></span>${CHEV}</summary>`+
+      `<span class="pm"><span>${mmss(st.t_start)}</span></span>${CHEV}</summary>`+
     `<div class="pbody"><div>`+
       (st.detail?`<div class="pd">${esc(st.detail)}</div>`:'')+
       (st.narration?`<div class="quote">${esc(st.narration)}</div>`:'')+
@@ -971,9 +963,9 @@ function renderSteps(){
     `<button class="btn ghost sm" data-action="clear-filter">Show all ${all.length}</button>`;
     f.querySelector('button').onclick=()=>filterPart(selSeg); }
   $('#procLede').textContent=(pr.summary?pr.summary+' ':'')+
-    `${plural(all.length,'step')}${(pr.loops||[]).length?', with the repeated part grouped':''}. Open a step for the details.`;
+    `${plural(all.length,'step')}${(pr.loops||[]).length?', the repeated part grouped':''}. The bar shows where the time went.`;
   const el=$('#proc'), seen=el._seen||0, loops=selSeg?[]:(pr.loops||[]);
-  let html=pr.source==='derived'?'<div class="prov"><i></i>Rough outline while the AI write-up is still running.</div>':'';
+  let html=pr.source==='derived'?'<div class="prov"><i></i>Outline from the named parts. The AI write-up, when it has run, turns it into the steps you actually took.</div>':'';
   let k=0;
   for(let i=0;i<shown.length;i++){
     const st=shown[i], lp=loops.find(l=>l.from===st.n);
@@ -986,6 +978,14 @@ function renderSteps(){
       i+=inner.length-1;
     } else html+=pstep(st,raw,st.n>seen,k++);
   }
+  // the strip: every step, sized by how long it took, numbered like the list
+  const ends=(S.segments||[]).map(x=>x.end||0), endT=Math.max(...all.map(x=>x.t_end||0),...ends,0);
+  const durs=all.map((x,i)=>Math.max(.5,((all[i+1]||{}).t_start??endT)-(x.t_start||0)));
+  const tot=durs.reduce((a,b)=>a+b,0)||1, big=Math.max(...durs);
+  $('#strip').classList.toggle('hide',all.length<2);
+  setHTML($('#strip'),all.map((x,i)=>`<button data-step="${x.n}" style="--w:${durs[i]};--o:${durs[i]/big}" `+
+    `title="${x.n}. ${esc(x.title)} · ${fmtSecs(durs[i])}" aria-label="Step ${x.n}: ${esc(x.title)}, ${fmtSecs(durs[i])}">`+
+    `${durs[i]/tot>.3?esc(x.n+'. '+x.title):durs[i]/tot>.04?x.n:''}</button>`).join(''));
   const open=new Set([...el.querySelectorAll('details.pstep[open]')].map(d=>d.dataset.step));
   if(setHTML(el,html)){ el._seen=Math.max(seen,...all.map(s=>s.n));
     open.forEach(n=>{ const d=el.querySelector(`details.pstep[data-step="${n}"]`); if(d) d.open=true; }); }

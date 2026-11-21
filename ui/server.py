@@ -202,28 +202,49 @@ def _process_raw():
     raw = jload(OUT / "steps.json", [])
     if not raw:
         return None
-    groups = []
-    for i, a in enumerate(raw):
-        key = (a.get("segment"), _site(a.get("surface")) or a.get("app"))
-        if groups and groups[-1]["key"] == key:
-            groups[-1]["actions"].append(i)
-        else:
-            groups.append({"key": key, "actions": [i]})
-    labels = {s.get("id"): s.get("label") for s in jload(OUT / "segments.json", [])}
+    segs = jload(OUT / "segments.json", [])
     steps = []
-    for n, g in enumerate(groups, 1):
-        acts = [raw[i] for i in g["actions"]]
-        phr = [f"{VERBS.get(a.get('action'), str(a.get('action') or '').capitalize())} "
-               f"{a.get('target') or ''}".strip() for a in acts[:2]]
-        title = phr[0] + (", then " + phr[1][0].lower() + phr[1][1:] if len(phr) > 1 else "")
-        where = _site(acts[0].get("surface")) or acts[0].get("app") or ""
-        steps.append({
-            "n": n, "title": title,
-            "detail": (labels.get(g["key"][0]) or "") + (f" · on {where}" if where else ""),
-            "app": acts[0].get("app") or "", "actions": g["actions"],
-            "t_start": min(a.get("t", 0) for a in acts), "t_end": max(a.get("t", 0) for a in acts),
-            "segment": g["key"][0],
-            "narration": next((a["narration"] for a in acts if a.get("narration")), None)})
+    if segs and all(x.get("label") for x in segs):
+        # The parts are already named by a model ("Reading job details on
+        # LinkedIn"). One step per part reads far better than one per click.
+        by_seg = {}
+        for i, a in enumerate(raw):
+            by_seg.setdefault(a.get("segment"), []).append(i)
+        for sg in segs:
+            if "chonkytasks" in f"{sg.get('app', '')} {sg.get('label', '')}".lower():
+                continue   # the recording of our own start/stop screen
+            acts = by_seg.get(sg["id"], [])
+            if steps and steps[-1]["title"] == sg["label"]:
+                steps[-1]["actions"] += acts
+                steps[-1]["t_end"] = sg.get("end", steps[-1]["t_end"])
+                continue
+            steps.append({
+                "title": sg["label"], "detail": sg.get("summary") or "",
+                "app": sg.get("app") or "", "actions": acts,
+                "t_start": sg.get("start", 0), "t_end": sg.get("end", 0), "segment": sg["id"],
+                "narration": next((raw[i]["narration"] for i in acts if raw[i].get("narration")), None)})
+        for n, st in enumerate(steps, 1):
+            st["n"] = n
+    if not steps:
+        groups = []
+        for i, a in enumerate(raw):
+            key = (a.get("segment"), _site(a.get("surface")) or a.get("app"))
+            if groups and groups[-1]["key"] == key:
+                groups[-1]["actions"].append(i)
+            else:
+                groups.append({"key": key, "actions": [i]})
+        labels = {x.get("id"): x.get("label") for x in segs}
+        for n, g in enumerate(groups, 1):
+            acts = [raw[i] for i in g["actions"]]
+            phr = [f"{VERBS.get(a.get('action'), str(a.get('action') or '').capitalize())} "
+                   f"{a.get('target') or ''}".strip() for a in acts[:2]]
+            title = phr[0] + (", then " + phr[1][0].lower() + phr[1][1:] if len(phr) > 1 else "")
+            steps.append({
+                "n": n, "title": title, "detail": labels.get(g["key"][0]) or "",
+                "app": acts[0].get("app") or "", "actions": g["actions"],
+                "t_start": min(a.get("t", 0) for a in acts), "t_end": max(a.get("t", 0) for a in acts),
+                "segment": g["key"][0],
+                "narration": next((a["narration"] for a in acts if a.get("narration")), None)})
     loops = []
     opps = sorted(jload(OUT / "opportunities.json", []),
                   key=lambda o: -(o.get("projected_hours_per_month") or 0))
