@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app import analyze, automations, automation_store, draft_review, mac_automation, main, meeting_automation
-from app import office_automation, office_store, workflow_evidence
+from app import office_automation, office_store, privacy_review, workflow_evidence
 from app.models import Observations, Proposal
 from app.office_recipes import RECIPES
 
@@ -78,6 +78,38 @@ def test_review_binds_only_the_selected_jpeg_and_context(sandbox, monkeypatch):
         completed = until(client, root, 'completed')
         assert completed['report']['excluded_frame_ids'] == ['f0002']
         assert calls == [Observations, Proposal]
+
+
+def test_refresh_preserves_local_report_and_invalidates_old_evidence(sandbox, monkeypatch):
+    job = main.new_job('synthetic.mp4', '')
+    job.update(status='completed', local_only=True, redaction_ready=True,
+               frames=[{'id': 'f0001', 'timestamp': 0}])
+    job['report'] = workflow_evidence.local_report(job)
+    main.persist(job)
+    image = main.DATA / job['id'] / 'redacted/f0001.jpg'
+    image.parent.mkdir()
+    image.write_bytes(b'\xff\xd8older-masks\xff\xd9')
+    updated = b'\xff\xd8sensitive-values\xff\xd9'
+
+    def prepare(folder, frames):
+        assert folder == image.parent.parent and frames == job['frames']
+        image.write_bytes(updated)
+
+    monkeypatch.setattr(privacy_review, 'prepare', prepare)
+    route = f"/api/jobs/{job['id']}/privacy"
+    with TestClient(main.app) as client:
+        selection = {'frame_ids': ['f0001']}
+        before = client.post(route + '/preview?exact=true', json=selection).json()
+        response = client.post(route + '/refresh')
+        assert response.status_code == 200, response.text
+        assert response.json()['redaction_policy'] == privacy_review.REDACTION_POLICY
+        assert response.json()['report'] == job['report'] and response.json()['local_only']
+        assert not response.json().get('privacy_approval')
+        assert client.post(route + '/approve', json={
+            **selection, 'revision': before['revision'], 'confirmed': True}).status_code == 409
+        after = client.post(route + '/preview?exact=true', json=selection).json()
+        assert after['revision'] != before['revision']
+        assert base64.b64decode(after['frames'][0]['image_url'].split(',', 1)[1]) == updated
 
 
 def until(client, url, expected, timeout=120):

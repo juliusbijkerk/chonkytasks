@@ -36,6 +36,24 @@ body { font-family: var(--sans); background: transparent; isolation: isolate; }
 .connections-link, .status { font-size: 12px; }
 .toolbar { height: 64px; gap: 12px; }
 .toolbar-title { font-size: 14px; }
+.capture-home { margin-bottom: 18px; }
+.capture-actions, .capture-sources, .capture-active { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.capture-mascot { flex: none; transform-origin: 50% 80%; }
+#capture-status { margin-top: 8px; color: var(--muted); font-size: 13px; }
+.capture-active { margin-left: auto; flex: none; font-size: 13px; }
+.capture-active[data-state="recording"] #capture-indicator::before {
+  content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 8px;
+  border-radius: 2px; vertical-align: -.08em; background: var(--rec);
+  box-shadow: 0 0 0 0 rgba(225, 5, 0, .5); animation: rec 1.4s infinite;
+}
+/* Recording indicator motion from github.com/juliusbijkerk/chonkytasks/blob/main/ui/index.html. */
+@keyframes rec {
+  70% { box-shadow: 0 0 0 10px rgba(225, 5, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(225, 5, 0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .capture-active[data-state="recording"] #capture-indicator::before { animation: none; }
+}
 .icon-button { width: 32px; height: 32px; border-radius: 9px; }
 main { padding-top: 40px; }
 .page-heading h1 { font-size: 32px; line-height: 1.15; font-weight: 700; letter-spacing: -.035em; }

@@ -40,7 +40,7 @@ Open **http://127.0.0.1:8000**. The existing `.env` in this workspace is already
 
 ## Use
 
-1. Drop an MP4, MOV, WebM, MKV, or M4V recording into the upload area, or select a recent Desktop recording.
+1. On macOS 15 or later, choose **Record screen**, then **Entire screen** or **Specific window**. Pick the source in the macOS chooser. **Stop recording** saves a silent local video and opens it for analysis. Use the upload area or ⌘O to import an existing MP4, MOV, WebM, MKV, or M4V.
 2. Optionally explain the task, then select **Prepare recording**. The app checks the video on this Mac. Choose **View local findings** to stay offline, or inspect the redacted screenshots, include the ones you want to share, and select **Approve and analyze**.
 3. Use the sidebar to switch between a new recording, the searchable recordings list, and recent analyses.
 4. Review Summary, Analysis steps, and Automations. Click a screenshot or numbered step to seek the video and see its description, application, timing, and evidence. Playback follows the current step. Returns to a previous view are shown separately, including in older reports.
@@ -52,13 +52,13 @@ During analysis, the progress bar animates and shows elapsed time. Four stages s
 
 Model requests stream through OpenRouter. The app shows waiting/receiving/checking/retrying states, elapsed request time, stream update counts, and live output token estimates (marked ≈). Estimates use received text length, not stream chunk count; the final provider usage replaces the estimate with its native token total. Streamed reasoning contributes to the estimate but its text is discarded. Raw response and reasoning text are never sent to the progress UI. Progress updates reach the app through server-sent events with reconnection support.
 
-For meaningful repetition detection, include multiple completed examples in the recording. The local pass matches visible sources to results for six supported workflow types and links them back to playback. Limits are 500 MB and 15 minutes per recording. The video preview is silent.
+For meaningful repetition detection, include multiple completed examples in the recording. The local pass matches visible sources to results for six supported workflow types and links them back to playback. Limits are 500 MB and 15 minutes per recording. The video preview is silent. Native capture stops shortly before the import limits so it can finish saving the video.
 
 ## Local evidence and Mistral analysis
 
 - FFmpeg makes a browser-compatible preview and samples screenshots with their actual presentation timestamps. Pillow/NumPy compare pixels to remove consecutive near-duplicates while retaining revisits and periodic coverage. These operations are deterministic; they use no AI models.
 - The bundled macOS helpers use Apple Vision locally to check for matching source/result pairs and prepare masked JPEGs. The local checks can run without a model API key.
-- Only the screenshots and context selected and approved in privacy review go to the configured Mistral vision model through OpenRouter in batches of 12. Local masking is best-effort. Inspect the actual images before including them. The report marks frames left out of model analysis.
+- Privacy review places opaque bars over detected sensitive values such as credentials, contact details, and financial or government identifiers. It keeps the surrounding workflow visible. Use **Refresh masks** on an older recording and **Select all screenshots** or individual checkboxes to choose the evidence. Review the exact images before approving. Only the approved screenshots and context go to the configured Mistral vision model through OpenRouter in batches of 12. The report marks frames left out of model analysis.
 - Each batch must account for every screenshot exactly once in chronological ranges. Missing screenshots or overlapping steps get one correction attempt; incomplete coverage is rejected rather than silently omitted. Older saved reports are displayed with explicit screenshot-to-step links and marked gaps, without another model call.
 - A second call to the same Mistral model identifies recurring workflows and proposes automations. Pydantic validates the response; the server validates references and derives elapsed spans from screenshot timestamps. Overlapping repeated instances are rejected.
 - `OPENROUTER_MODEL` defaults to `mistralai/mistral-large-4-0`. Non-`mistralai/` model IDs are rejected. Provider routing can change the host serving the same Mistral model, never the model family. There is no fallback to another vendor's model.

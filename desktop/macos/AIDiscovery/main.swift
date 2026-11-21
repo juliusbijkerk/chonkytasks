@@ -206,12 +206,27 @@ final class DropView: NSView {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     var window: NSWindow!
     var webView: WKWebView!
     var server: ServerProcess?
     private var pageReady = false
-    private var pendingFiles: [URL] = []
+    private var pendingFiles: [(URL, Bool)] = []
+    private var screenCapture: Any?
+
+    @available(macOS 15.0, *)
+    private var recorder: ScreenRecording {
+        if let existing = screenCapture as? ScreenRecording { return existing }
+        let new = ScreenRecording()
+        new.onState = { [weak self] status, message in
+            self?.captureState(status, message: message)
+        }
+        new.onRecording = { [weak self] url in
+            self?.handleDroppedFile(url, temporaryCapture: true)
+        }
+        screenCapture = new
+        return new
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
@@ -246,6 +261,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if #available(macOS 15.0, *) { (screenCapture as? ScreenRecording)?.discard() }
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "chonkytasksCapture")
         server?.stop()
     }
 
@@ -253,7 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     /// Files dropped on the Dock icon or opened via "Open With".
     func application(_ application: NSApplication, openFiles files: [String]) {
-        files.map(URL.init(fileURLWithPath:)).filter(isVideoFile).forEach(handleDroppedFile)
+        files.map(URL.init(fileURLWithPath:)).filter(isVideoFile).forEach { handleDroppedFile($0) }
         application.reply(toOpenOrPrint: .success)
     }
 
@@ -269,6 +286,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.delegate = self
 
         let configuration = WKWebViewConfiguration()
+        if #available(macOS 15.0, *) {
+            configuration.userContentController.add(self, name: "chonkytasksCapture")
+            configuration.userContentController.addUserScript(WKUserScript(
+                source: "window.chonkytasksCaptureAvailable = true",
+                injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
         webView = WKWebView(frame: rect, configuration: configuration)
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = self
@@ -290,6 +313,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "New analysis", action: #selector(newAnalysis), keyEquivalent: "n")
         appMenu.addItem(withTitle: "Open recording…", action: #selector(openRecording), keyEquivalent: "o")
+        if #available(macOS 15.0, *) {
+            appMenu.addItem(withTitle: "Stop recording", action: #selector(stopRecording), keyEquivalent: "R")
+        }
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit chonkytasks", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
@@ -320,12 +346,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         }
     }
 
+    // MARK: - Local recording bridge
+
+    @objc private func stopRecording() {
+        if #available(macOS 15.0, *) { (screenCapture as? ScreenRecording)?.stop() }
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard #available(macOS 15.0, *), pageReady, message.name == "chonkytasksCapture",
+              message.frameInfo.isMainFrame, let server,
+              message.frameInfo.securityOrigin.protocol == server.baseURL.scheme,
+              message.frameInfo.securityOrigin.host == server.baseURL.host,
+              message.frameInfo.securityOrigin.port == server.port,
+              let action = message.body as? String else { return }
+        switch action {
+        case "display": recorder.choose(display: true)
+        case "window": recorder.choose(display: false)
+        case "stop": recorder.stop()
+        default: break
+        }
+    }
+
+    private func captureState(_ status: String, message: String?) {
+        var state = ["status": status]
+        if let message { state["message"] = message }
+        guard let json = try? JSONSerialization.data(withJSONObject: state),
+              let payload = String(data: json, encoding: .utf8) else { return }
+        webView?.evaluateJavaScript("window.chonkytasksCaptureState?.(\(payload))")
+    }
+
     // MARK: - Drag & drop bridge
 
-    func handleDroppedFile(_ url: URL?) {
+    func handleDroppedFile(_ url: URL?, temporaryCapture: Bool = false) {
         guard let url, isVideoFile(url) else { return }
         guard pageReady, let root = server?.root else {
-            pendingFiles.append(url)
+            pendingFiles.append((url, temporaryCapture))
             return
         }
         let inbox = root.appendingPathComponent("data/jobs/inbox", isDirectory: true)
@@ -336,9 +391,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             try? FileManager.default.removeItem(at: destination)
             try FileManager.default.copyItem(at: url, to: destination)
         } catch {
-            guard let data = try? Data(contentsOf: url) else { return }
-            try? data.write(to: destination)
+            guard let data = try? Data(contentsOf: url), (try? data.write(to: destination)) != nil else {
+                if temporaryCapture { captureState("error", message: "Could not import the local recording.") }
+                return
+            }
         }
+        if temporaryCapture { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         webView.evaluateJavaScript(
             "window.aiDiscovery && window.aiDiscovery.dropped('\(destination.lastPathComponent)', '\(jsString(url.lastPathComponent))')")
     }
@@ -348,7 +406,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         pageReady = true
         let files = pendingFiles
         pendingFiles.removeAll()
-        files.forEach(handleDroppedFile)
+        files.forEach { handleDroppedFile($0.0, temporaryCapture: $0.1) }
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

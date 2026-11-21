@@ -38,6 +38,7 @@ SDK="$(xcrun --show-sdk-path)"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 swiftc -O -swift-version 5 -sdk "$SDK" -target "$(uname -m)-apple-macosx13.0" \
   -framework AppKit -framework WebKit -framework Foundation -framework UniformTypeIdentifiers \
+  -framework ScreenCaptureKit -framework AVFoundation \
   "$SRC"/*.swift -o "$BUNDLE/Contents/MacOS/chonkytasks"
 
 echo "==> Assembling bundle"
