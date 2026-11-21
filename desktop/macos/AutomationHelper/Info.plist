@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>chonkytasks Automations</string>
+<key>CFBundleDisplayName</key><string>chonkytasks Automations</string>
+<key>CFBundleIdentifier</key><string>com.mistralhackathon.aidiscovery.automations</string>
+<key>CFBundleExecutable</key><string>AutomationHelper</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSUIElement</key><true/>
+<key>LSMinimumSystemVersion</key><string>13.0</string>
+<key>NSAppleEventsUsageDescription</key><string>Read new meeting requests in Mail and save reply drafts for your review.</string>
+<key>NSCalendarsUsageDescription</key><string>Check availability and add meeting events after you approve them.</string>
+<key>NSCalendarsFullAccessUsageDescription</key><string>Read busy times and add an event to your chosen calendar after you approve it.</string>
+</dict></plist>

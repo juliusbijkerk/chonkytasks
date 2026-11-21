@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+.venv/
+.workflows-venv/
+__pycache__/
+.pytest_cache/
+data/
+output/
+.playwright-cli/
+.DS_Store
+
+dist/
+macos/FlowLens.iconset/
+macos/AIDiscovery.iconset/

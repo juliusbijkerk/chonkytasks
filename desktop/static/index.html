@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="chonkytasks — drop a screen recording, get a plain summary of what happened and concrete suggestions.">
+  <title>chonkytasks</title>
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" type="image/svg+xml" href="/static/brand/mark-mistral.svg">
+  <script src="/static/appearance.js"></script>
+  <link rel="stylesheet" href="/static/palette.css">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/chonkytasks.css">
+  <script src="/static/brand-motion.js" defer></script>
+  <script src="/static/app.js" defer></script>
+  <script src="/static/capture.js" defer></script>
+  <script src="/static/automations.js" defer></script>
+  <script src="/static/activity.js" defer></script>
+  <script src="/static/drafts.js" defer></script>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+  <aside class="sidebar" id="sidebar" aria-label="Sidebar">
+    <div class="sidebar-brand">
+      <img class="brand-icon" src="/static/brand/mark-mistral.svg" data-brand-mark data-chonk-motion="hop" data-motion-key="sidebar" alt="" width="38" height="38">
+      <span class="brand">chonkytasks<span class="brand-caption">with Mistral</span></span>
+      <button class="icon-button sidebar-close" id="sidebar-close" aria-label="Close sidebar">×</button>
+    </div>
+    <nav class="primary-nav" aria-label="Main navigation">
+      <button class="nav-item active" id="nav-new" aria-current="page"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg><span>New recording</span></button>
+      <button class="nav-item" id="nav-recordings"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="5" width="14" height="12" rx="2"/><path d="M6 2h8M7 9h6M7 13h4"/></svg><span>Recordings</span><span class="nav-count" id="recording-count">0</span></button>
+      <button class="nav-item" id="nav-automations"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m11 2-7 9h5l-1 7 8-10h-5l1-6Z"/></svg><span>Automations</span><span class="nav-count" id="automation-count">0</span></button>
+      <button class="nav-item" id="nav-activity"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 14h12l-1.5-2V8a4.5 4.5 0 0 0-9 0v4L4 14ZM8 17h4"/></svg><span>Activity</span><span class="activity-count" id="activity-count" hidden></span></button>
+    </nav>
+    <nav class="section-nav" id="report-nav" aria-label="In this recording" hidden>
+      <h2 class="sidebar-label">In this recording</h2>
+      <button class="section-link" data-section="report-summary"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M3 7h14M6 10h8M6 13h5"/></svg><span>Summary</span></button>
+      <button class="section-link" data-section="report-steps"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M3 7h14M6 10h.1M9 10h5M6 13h.1M9 13h5"/></svg><span>Analysis steps</span></button>
+      <button class="section-link" data-section="report-suggestions"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="m11 6-4 5h3l-1 4 4-5h-3l1-4Z"/></svg><span>Automations</span></button>
+    </nav>
+    <section class="sidebar-recents" aria-labelledby="recent-label">
+      <h2 class="sidebar-label" id="recent-label">Recent</h2>
+      <div id="history"><p class="sidebar-empty">No recordings yet</p></div>
+    </section>
+    <div class="sidebar-footer"><span class="status" id="status"><span class="dot"></span>Connecting…</span><button class="connections-link" id="connections-button">Connections</button></div>
+  </aside>
+  <button class="sidebar-shade" id="sidebar-shade" aria-label="Close sidebar" tabindex="-1" hidden></button>
+  <div class="workspace" id="workspace">
+    <header class="toolbar">
+      <button class="icon-button" id="sidebar-toggle" aria-label="Hide sidebar" aria-controls="sidebar" aria-expanded="true" title="Toggle sidebar"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2"/><path d="M8 4v12M5 7h.1M5 10h.1"/></svg></button>
+      <span class="toolbar-title" id="view-title">New recording</span>
+      <div class="capture-active" id="active-capture" hidden>
+        <span id="capture-indicator" role="status"></span>
+        <button class="secondary" id="stop-capture" type="button">Stop recording</button>
+      </div>
+    </header>
+    <main id="main-content">
+    <div id="error" class="error" role="alert" hidden></div>
+
+    <section id="home-view">
+      <div class="page-heading"><h1>New recording</h1><p>See the steps. Automate the repeat.</p></div>
+      <div class="capture-home" id="capture-home" hidden>
+        <div class="capture-actions">
+          <img src="/static/brand/mark-mistral.svg" class="capture-mascot" data-chonk-motion="hop" alt="" width="32" height="32">
+          <button class="primary" id="open-capture" type="button" aria-expanded="false" aria-controls="capture-sources">Record screen</button>
+          <div class="capture-sources" id="capture-sources" role="group" aria-label="Recording source" hidden>
+            <button class="secondary" id="capture-display" type="button">Entire screen</button>
+            <button class="secondary" id="capture-window" type="button">Specific window</button>
+          </div>
+        </div>
+        <p id="capture-status" role="status" hidden></p>
+      </div>
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Drop a screen recording or choose a file">
+        <input type="file" id="file-input" accept=".mp4,.mov,.webm,.mkv,.m4v" hidden>
+        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>
+        <p class="drop-title" id="drop-title">Drop a screen recording</p>
+        <p class="drop-sub" id="drop-sub">or <span class="browse">choose a file</span></p>
+        <p class="drop-note">MP4, MOV, WebM, MKV or M4V · Up to 500 MB</p>
+      </div>
+      <div class="context-row">
+        <input type="text" id="context" maxlength="2000" placeholder="What were you working on? (optional)" aria-label="What were you working on? (optional)" autocomplete="off">
+        <button class="primary" id="analyze-button" disabled>Prepare recording</button>
+      </div>
+      <p class="hint">Start with a recording of a task you repeat.</p>
+      <div class="samples" id="samples"></div>
+    </section>
+
+    <section id="library-view" hidden>
+      <div class="page-heading library-heading"><div><h1>Recordings</h1><p>Your recordings and analyses.</p></div><input id="recording-search" type="search" placeholder="Search recordings" aria-label="Search recordings"></div>
+      <div class="recording-list" id="recording-list"></div>
+    </section>
+
+    <section id="busy-view" hidden>
+      <div class="busy-heading"><p class="busy-name" id="busy-name"></p><button class="icon-button" id="busy-edit" aria-label="Rename or add notes" title="Rename or add notes">✎</button></div>
+      <div class="bar" id="progress-bar" role="progressbar" aria-label="Analysis progress" aria-valuemin="0" aria-valuemax="100"><div class="bar-fill" id="bar-fill"></div></div>
+      <div class="busy-progress"><p class="busy-msg" id="busy-msg" role="status"></p><span class="busy-stats" id="busy-stats" aria-hidden="true"></span></div>
+      <ol class="process-steps" id="busy-stages" aria-label="Analysis stages"></ol>
+      <div class="request-status" id="request-status" hidden>
+        <div class="request-heading"><span class="request-state" id="request-state"></span><span id="request-attempt"></span></div>
+        <div class="request-metrics"><div><strong id="live-tokens">0</strong><span>Output tokens</span></div><div><strong id="request-time">0:00</strong><span>This request</span></div><div><strong id="stream-updates">0</strong><span>Stream updates</span></div></div>
+        <p class="request-note" id="request-note"></p>
+      </div>
+      <div class="batch-preview" id="batch-preview" hidden><p id="batch-caption"></p><div class="batch-frames" id="batch-frames"></div></div>
+      <div class="busy-actions">
+        <button class="primary" id="retry-button" hidden>Retry</button>
+        <button class="link" id="busy-back">Back</button>
+      </div>
+    </section>
+
+    <section id="privacy-view" hidden></section>
+    <section id="report-view" hidden></section>
+    <section id="automations-view" hidden>
+      <div class="page-heading"><h1>Automations</h1><p>Background tasks on this Mac.</p></div>
+      <div id="automation-library"></div>
+    </section>
+    <section id="activity-view" hidden>
+      <div class="page-heading activity-heading"><div><h1>Activity</h1><p>What your automations have done.</p></div><div class="activity-actions"><button class="secondary" id="activity-read" hidden>Mark all read</button><button class="secondary" id="activity-clear" disabled>Clear notifications</button></div></div>
+      <p class="activity-feedback" id="activity-feedback" role="status" hidden></p>
+      <div class="activity-tabs" role="group" aria-label="Activity filter"><button class="active" data-activity-filter="all" aria-pressed="true">All runs</button><button data-activity-filter="results" aria-pressed="false">Results & alerts</button></div>
+      <div id="activity-list" aria-live="polite"></div>
+      <button class="secondary activity-more" id="activity-more" hidden>Load earlier runs</button>
+      <p class="activity-retention">Run history is kept on this Mac for 7 days. Results awaiting approval stay in Activity.</p>
+    </section>
+    </main>
+  </div>
+  <dialog class="draft-dialog" id="draft-dialog" aria-labelledby="draft-title" tabindex="-1">
+    <div class="draft-heading"><div><span class="draft-eyebrow" id="draft-eyebrow">Reply to review</span><h2 id="draft-title">Email preview</h2></div><button class="draft-close" id="draft-close" aria-label="Close preview">×</button></div>
+    <div id="draft-preview" aria-live="polite"></div>
+    <p class="draft-error" id="draft-error" role="alert" hidden></p>
+    <div class="draft-footer"><span id="draft-help">Your reply stays in Drafts until you send it.</span><div class="dialog-actions"><button class="secondary" id="draft-keep">Keep draft</button><button class="primary" id="draft-send" disabled>Send reply</button></div></div>
+  </dialog>
+  <dialog class="delete-dialog" id="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-description">
+    <h2 id="delete-title">Delete recording?</h2>
+    <p class="delete-filename" id="delete-filename"></p>
+    <p id="delete-description">The saved recording and its analysis will be removed from this app. Your original video stays where it is.</p>
+    <p class="delete-error" id="delete-error" role="alert" hidden></p>
+    <div class="dialog-actions"><button class="secondary" id="delete-cancel" autofocus>Cancel</button><button class="danger" id="delete-confirm">Delete</button></div>
+  </dialog>
+  <dialog class="edit-dialog" id="edit-dialog" aria-labelledby="edit-title">
+    <form id="edit-form">
+      <h2 id="edit-title">Recording details</h2>
+      <label for="recording-name">Name</label><input id="recording-name" name="display_name" maxlength="160" required autocomplete="off">
+      <p class="original-name" id="original-name"></p>
+      <label for="recording-notes">Notes</label><textarea id="recording-notes" name="notes" maxlength="4000" rows="5" placeholder="Add a note…"></textarea>
+      <p class="edit-hint">Saved with this recording.</p>
+      <p class="delete-error" id="edit-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button class="secondary" id="edit-cancel" type="button">Cancel</button><button class="primary" id="edit-save" type="submit">Save</button></div>
+    </form>
+  </dialog>
+  <dialog class="connection-dialog" id="connection-dialog" aria-labelledby="connection-title">
+    <div class="connection-title"><h2 id="connection-title">Connect your apps</h2><button class="icon-button" id="connection-close" aria-label="Close connections">×</button></div>
+    <p class="connection-intro" id="connection-intro">Connect once, then activate automations in one click.</p>
+    <form class="connection-section" id="workflow-config" hidden>
+      <p class="connection-help" id="workflow-source-hint"></p>
+      <div id="workflow-subject-field" hidden><label for="workflow-subject-prefix">Email subject starts with</label><input id="workflow-subject-prefix" class="workflow-input" maxlength="100" autocomplete="off" aria-describedby="workflow-source-hint"></div>
+      <div id="workflow-status-field" hidden><label for="workflow-status-filter">Include only this status (optional)</label><input id="workflow-status-filter" class="workflow-input" maxlength="100" autocomplete="off" aria-describedby="workflow-status-help"><p class="connection-help" id="workflow-status-help">Leave blank to include every status in the spreadsheet.</p></div>
+    </form>
+    <section class="connection-section">
+      <div class="connection-row"><div><strong>Mistral</strong><small id="mistral-connection-state">Not connected</small></div><button class="link" id="change-mistral-key" hidden>Change key</button></div>
+      <form id="mistral-key-form"><label for="mistral-key">Mistral Studio API key</label><div class="key-input-row"><input id="mistral-key" type="password" autocomplete="off" placeholder="Paste your key" required><button class="secondary" type="submit" id="connect-mistral">Connect</button></div><a class="connection-help key-link" href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener noreferrer">Get a key in Mistral Studio ↗</a><p class="connection-help">Sign in → API Keys → New key. Name it “chonkytasks”, then paste it here.</p><p class="connection-help">Used for reviewed recording analysis and scheduled workflows. Stored in macOS Keychain. Workflows access is required to connect this key.</p></form>
+    </section>
+    <section class="connection-section" id="mac-connections">
+      <div class="connection-row"><div><strong>Mail</strong><small id="mac-connection-state">Not connected</small></div><button class="secondary" id="connect-mac" aria-label="Allow Mail access">Allow access</button></div>
+      <div class="connection-row calendar-connection" id="calendar-connection"><div><strong>Calendar</strong><small id="calendar-connection-state">Not connected</small></div><button class="secondary" id="connect-calendar" aria-label="Allow Calendar access">Allow access</button></div>
+      <div class="permission-help" id="permission-help" hidden><p id="permission-copy">Enable calendar access for chonkytasks in Calendars settings. Mail access is under Automation.</p><div><button class="link" data-privacy-pane="Calendars">Calendar settings ↗</button><button class="link" data-privacy-pane="Automation">Mail permissions ↗</button></div></div>
+    </section>
+    <p class="connection-footnote" id="connection-footnote">The meeting workflow may send new message text to Mistral to identify requests. Checks run every 30 seconds while this Mac is awake and online, even after you close chonkytasks.</p>
+    <p class="connection-error" id="connection-error" role="alert" hidden></p>
+    <div class="dialog-actions"><button class="primary" id="connection-done">Done</button></div>
+  </dialog>
+</body>
+</html>
