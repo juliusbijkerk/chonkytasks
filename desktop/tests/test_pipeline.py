@@ -159,6 +159,22 @@ def test_real_video_extraction_and_corrupt_input(tmp_path):
         probe(invalid)
 
 
+@pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="FFmpeg required")
+def test_browser_webm_without_duration_metadata(tmp_path, monkeypatch):
+    video = tmp_path / "browser-capture.webm"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i",
+                    "testsrc2=duration=3.1:size=320x180:rate=10", "-c:v", "libvpx-vp9",
+                    "-live", "1", str(video)], check=True)
+    raw = subprocess.check_output(["ffprobe", "-v", "error", "-show_format", "-show_streams",
+                                   "-of", "json", str(video)])
+    metadata = json.loads(raw)
+    assert "duration" not in metadata["format"] and "duration" not in metadata["streams"][0]
+    assert probe(video)["duration"] == pytest.approx(3.1)
+    monkeypatch.setattr("app.video.MAX_DURATION", 3)
+    with pytest.raises(ValueError, match="no longer than 15 minutes"):
+        probe(video)
+
+
 def test_retry_reuses_validated_observations_for_the_same_model(tmp_path, monkeypatch):
     frames = [{"id": "f0001", "timestamp": 0}, {"id": "f0002", "timestamp": 4}]
     approval = review_test_frames(tmp_path, frames)

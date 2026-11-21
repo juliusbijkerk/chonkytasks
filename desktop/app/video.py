@@ -12,6 +12,35 @@ MAX_DURATION = 900
 MAX_FRAMES = 72
 
 
+def _seconds(value) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
+def _video_packet_duration(path: Path) -> float | None:
+    """Browser WebM captures can omit duration metadata while keeping valid timestamps."""
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_packets",
+         "-show_entries", "packet=pts_time,duration_time", "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode:
+        return None
+
+    start, end = math.inf, -math.inf
+    for line in result.stdout.splitlines():
+        pts, _, duration = line.partition(",")
+        timestamp = _seconds(pts)
+        if timestamp is None:
+            continue
+        start = min(start, timestamp)
+        end = max(end, timestamp + max(0.0, _seconds(duration) or 0.0))
+    return end - start if end > start else None
+
+
 def probe(path: Path) -> dict:
     result = subprocess.run(
         ["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(path)],
@@ -23,9 +52,15 @@ def probe(path: Path) -> dict:
     video = next((s for s in metadata.get("streams", []) if s.get("codec_type") == "video"), None)
     if not video:
         raise ValueError("No video track was found in this file.")
-    duration = float(metadata.get("format", {}).get("duration", video.get("duration", 0)))
-    if not math.isfinite(duration) or duration <= 0 or duration > MAX_DURATION:
-        raise ValueError("Please use a recording between 1 second and 15 minutes long.")
+    duration = _seconds(metadata.get("format", {}).get("duration"))
+    if duration is None or duration <= 0:
+        duration = _seconds(video.get("duration"))
+    if duration is None or duration <= 0:
+        duration = _video_packet_duration(path)
+    if duration is None or duration <= 0:
+        raise ValueError("Could not determine this recording’s duration. Try exporting it again.")
+    if duration > MAX_DURATION:
+        raise ValueError("Please use a recording no longer than 15 minutes.")
     return {"duration": round(duration, 3), "width": video["width"], "height": video["height"],
             "has_audio": any(s.get("codec_type") == "audio" for s in metadata["streams"])}
 
