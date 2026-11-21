@@ -32,6 +32,17 @@ recording.mp4
   → live replay in browser       (33s → 1-2s)
 ```
 
+**On the narration, before anyone asks.** Voxtral transcribes the audio and
+aligns it to the frames it belongs to. In this recording that produced
+nothing usable: we recorded in a room full of people, so the transcript is
+other teams talking about their own demos. The honest outcome is that **0 of
+54 steps carry narration**, because the alignment refused to attach audio that
+did not belong to the person recording. Earlier in the day it did attach it,
+and a stranger's conversation showed up as the user's reasoning. We fixed that
+by windowing the transcript per segment rather than passing the whole thing to
+every call. Narrate into a headset and the "why" arrives; narrate in a
+hackathon room and you get silence, which is the right answer.
+
 ---
 
 ## Slide 4 — The honest number
