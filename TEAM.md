@@ -1,4 +1,4 @@
-# Workday X-ray — team brief
+# chonkytasks — team brief
 
 **What it is:** watch someone work for 15 minutes, find the loops they repeat,
 rank them by measured time, then generate and run the agent that does one.
