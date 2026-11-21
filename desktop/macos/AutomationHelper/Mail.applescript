@@ -23,12 +23,13 @@ on inboxInfo()
     end timeout
 end inboxInfo
 
-on messageContent(messageNumber)
+on messageContent(messageNumber, maximumLength)
     tell application "Mail"
         set itemMessage to first message of inbox whose id is messageNumber
         set bodyText to content of itemMessage as text
-        if (length of bodyText) > 12000 then set bodyText to text 1 thru 12000 of bodyText
-        return {subject of itemMessage, bodyText, message id of itemMessage, sender of itemMessage}
+        set bodyTruncated to (length of bodyText) > maximumLength
+        if bodyTruncated then set bodyText to text 1 thru maximumLength of bodyText
+        return {subject of itemMessage, bodyText, message id of itemMessage, sender of itemMessage, bodyTruncated}
     end tell
 end messageContent
 

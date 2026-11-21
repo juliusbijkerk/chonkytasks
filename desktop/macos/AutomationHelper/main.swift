@@ -205,8 +205,11 @@ func run(_ input: [String: Any]) throws -> [String: Any] {
         return ["accepted": true]
     }
     if operation == "message" {
-        let result = try mail("messageContent", [NSAppleEventDescriptor(int32: id)])
-        return ["subject": result.atIndex(1)?.stringValue ?? "", "body": result.atIndex(2)?.stringValue ?? "", "message_id": result.atIndex(3)?.stringValue ?? "", "sender": result.atIndex(4)?.stringValue ?? ""]
+        let maximumLength: Int32 = input["full_body"] as? Bool == true ? 60000 : 12000
+        let result = try mail("messageContent", [NSAppleEventDescriptor(int32: id), NSAppleEventDescriptor(int32: maximumLength)])
+        return ["subject": result.atIndex(1)?.stringValue ?? "", "body": result.atIndex(2)?.stringValue ?? "",
+            "message_id": result.atIndex(3)?.stringValue ?? "", "sender": result.atIndex(4)?.stringValue ?? "",
+            "body_truncated": result.atIndex(5)?.booleanValue ?? true]
     }
     if operation == "draft" || operation == "recover_draft" {
         guard let text = input["body"] as? String, !text.isEmpty, text.count <= 12000,
