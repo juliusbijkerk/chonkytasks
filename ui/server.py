@@ -192,7 +192,7 @@ def _site(surface):
     return s.split("/")[0] if "." in s.split("/")[0] else s
 
 
-def process():
+def _process_raw():
     """The process in plain steps. describe.py writes the good version; until it
     has run (or while observe.py is still streaming) this builds a plain one
     from the raw actions, so there is always something to look at."""
@@ -234,6 +234,34 @@ def process():
             loops.append({"from": min(hit), "to": max(hit), "times": opps[0]["occurrences"],
                           "label": opps[0].get("title") or ""})
     return {"summary": "", "source": "derived", "steps": steps, "loops": loops}
+
+
+def process():
+    """The process, with one screenshot per step where the screen changed.
+
+    sample_frames.py already dropped near-identical frames, so the latest kept
+    frame at or before a step's start is what the screen looked like then. A
+    step whose screen is the same as the previous step's gets no screenshot
+    (frame_same: true), so each screen shows once, where it first appears."""
+    pr = _process_raw()
+    if not pr:
+        return pr
+    frames = sorted(jload(OUT / "frames" / "manifest.json", []), key=lambda f: f.get("t", 0))
+    prev = None
+    for st in pr.get("steps", []):
+        t = (st.get("t_start") or 0) + 0.5
+        best = None
+        for f in frames:
+            if f.get("t", 0) <= t:
+                best = f
+            else:
+                break
+        best = best or (frames[0] if frames else None)
+        name = Path(best["file"]).name if best else None
+        st["frame"] = f"/frames/{name}" if name else None
+        st["frame_same"] = bool(name) and name == prev
+        prev = name or prev
+    return pr
 
 
 def report_md():
