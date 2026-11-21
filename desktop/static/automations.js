@@ -291,6 +291,7 @@
     try {
       await api('/api/connections/mistral', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({api_key: $('#mistral-key').value.trim()})});
       $('#mistral-key').value = ''; connection = await api('/api/connections');
+      await refreshHealth();
     } catch (error) { connectionError(error); }
     finally { connecting = false; $('#connect-mistral').disabled = false; paintConnection(); }
   });

@@ -19,13 +19,12 @@ def event(payload):
 
 
 def packet(content=None, finish=None, **extra):
-    return {"model": "mistralai/mistral-large-4-0", "choices": [{
+    return {"model": "mistral-large-4-0", "choices": [{
         "delta": {"content": content}, "finish_reason": finish}], **extra}
 
 
 @pytest.fixture
 def transport(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key-never-sent")
     original = httpx.AsyncClient
     def install(handler):
         monkeypatch.setattr(completion.httpx, "AsyncClient", lambda **kwargs: original(
@@ -51,14 +50,13 @@ def test_stream_counts_real_usage_once_and_never_exposes_text(transport, monkeyp
     ticks = iter(range(1000))
     monkeypatch.setattr(completion, "time", SimpleNamespace(monotonic=lambda: next(ticks)))
     stream = Pieces(': heartbeat\n\n' + event(packet('{"summary":')) +
-        event({"choices": [{"delta": {"reasoning": "private internal text", "reasoning_details": [
-            {"type": "reasoning.text", "text": "private internal text"}]}}]}) +
-        event(packet('"Done ✓"}', "stop")) + event({"choices": [], "usage": {
+        event(packet([{"type": "thinking", "thinking": [{"type": "text", "text": "private internal text"}]}])) +
+        event(packet([{"type": "text", "text": '"Done ✓"}'}], "stop")) + event({"choices": [], "usage": {
             "prompt_tokens": 250, "completion_tokens": 14, "completion_tokens_details": {"reasoning_tokens": 0}}}) + 'data: [DONE]\n\n')
     transport(lambda request: httpx.Response(200, stream=stream))
     updates, usage = [], []
     result = asyncio.run(completion.complete("test", Result, usage,
-                        "mistralai/mistral-large-4-0", updates.append))
+                        "mistral-large-4-0", updates.append, key="test-key-never-sent"))
     assert result.summary == "Done ✓"
     assert any(s["tokens_estimated"] and s["output_tokens"] > 0 for s in updates)
     final = updates[-1]
@@ -85,7 +83,7 @@ def test_truncated_response_retries_with_larger_budget(transport):
     transport(respond)
     updates, usage = [], []
     result = asyncio.run(completion.complete("test", Result, usage,
-                        "mistralai/mistral-large-4-0", updates.append))
+                        "mistral-large-4-0", updates.append, key="test-key-never-sent"))
     assert result.summary == "complete" and budgets == [16000, 32000]
     assert any(s["phase"] == 'retrying' and s["reason"] == 'response_limit' for s in updates)
     assert updates[-1]["attempt"] == 2 and updates[-1]["output_tokens"] == 6
@@ -101,7 +99,7 @@ def test_incomplete_streams_and_invalid_results_are_bounded_and_safe(transport, 
         return httpx.Response(200, text=body)
     transport(respond)
     with pytest.raises(ValueError, match="complete result after retrying") as caught:
-        asyncio.run(completion.complete("test", Result, [], "mistralai/mistral-large-4-0", updates.append))
+        asyncio.run(completion.complete("test", Result, [], "mistral-large-4-0", updates.append, key="test-key-never-sent"))
     assert len(calls) == 3 and updates[-1]["phase"] == "failed"
     assert "private" not in str(caught.value) and "private" not in json.dumps(updates)
 
@@ -113,7 +111,7 @@ def test_exhausted_output_limit_does_not_blame_video_length(transport):
         return httpx.Response(200, text=event(packet('{', 'length')))
     transport(respond)
     with pytest.raises(ValueError, match="recording is saved") as caught:
-        asyncio.run(completion.complete("test", Result, [], "mistralai/mistral-large-4-0"))
+        asyncio.run(completion.complete("test", Result, [], "mistral-large-4-0", key="test-key-never-sent"))
     assert budgets == [16000, 32000, 64000]
     assert 'shorter' not in str(caught.value)
 

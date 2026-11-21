@@ -39,34 +39,35 @@ def test_frame_budget_preserves_beginning_and_end():
 
 
 def test_rejects_non_mistral_configuration(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_MODEL", "another-vendor/model")
+    monkeypatch.setenv("MISTRAL_MODEL", "another-vendor/model")
     with pytest.raises(ValueError, match="Only Mistral"):
         get_model()
 
 
 def test_api_enforces_mistral_output_and_never_sends_tools(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "private-test-key")
     def respond(request):
         body = json.loads(request.content)
-        assert body["model"] == "mistralai/mistral-large-4-0"
+        assert body["model"] == "mistral-large-4-0"
         assert "tools" not in body
-        assert body["reasoning"]["effort"] == "low"
+        assert request.url == httpx.URL("https://api.mistral.ai/v1/chat/completions")
+        assert request.headers["Authorization"] == "Bearer private-test-key"
+        assert "provider" not in body
+        assert body["reasoning_effort"] == "low"
         assert body["stream"] is True
         return httpx.Response(200, text='data: {"model":"other-vendor/model","choices":[]}\n\n')
     client_type = httpx.AsyncClient
     monkeypatch.setattr(completion.httpx, "AsyncClient", lambda **kwargs: client_type(transport=httpx.MockTransport(respond), **kwargs))
     with pytest.raises(ValueError, match="non-Mistral"):
-        asyncio.run(analysis_module.complete("test", Observations, [], "mistralai/mistral-large-4-0"))
+        asyncio.run(analysis_module.complete("test", Observations, [], "mistral-large-4-0", key="private-test-key"))
 
 
 def test_timeout_produces_actionable_error(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "private-test-key")
     def respond(request):
         raise httpx.ReadTimeout("upstream timeout")
     client_type = httpx.AsyncClient
     monkeypatch.setattr(completion.httpx, "AsyncClient", lambda **kwargs: client_type(transport=httpx.MockTransport(respond), **kwargs))
     with pytest.raises(ValueError, match="took too long"):
-        asyncio.run(analysis_module.complete("test", Observations, [], "mistralai/mistral-large-4-0"))
+        asyncio.run(analysis_module.complete("test", Observations, [], "mistral-large-4-0", key="private-test-key"))
 
 
 def test_evidence_spans_come_from_frames_not_model():
@@ -113,7 +114,8 @@ def test_analysis_repairs_screenshot_coverage_before_making_suggestions(tmp_path
                 "start_frame_id": frame, "end_frame_id": frame, "evidence_type": "observed",
                 "confidence": "high", "uncertainty": "None"}
     calls = []
-    async def fake_complete(content, schema, usage, model, on_progress=None):
+    monkeypatch.setenv("MISTRAL_API_KEY", "test-key-never-sent")
+    async def fake_complete(content, schema, usage, model, on_progress=None, *, key):
         calls.append(schema)
         if schema is Observations:
             ids = ["f0001"] if len(calls) == 1 or not repair_succeeds else ["f0001", "f0002"]
@@ -168,7 +170,8 @@ def test_retry_reuses_validated_observations_for_the_same_model(tmp_path, monkey
            "privacy_approval": approval, "observation_revision": approval['revision'],
            "observations": steps, "observation_model": model,
            "observation_usage": [{"model": model, "completion_tokens": 200}]}
-    async def fake_complete(content, schema, usage, model, on_progress=None):
+    monkeypatch.setenv("MISTRAL_API_KEY", "test-key-never-sent")
+    async def fake_complete(content, schema, usage, model, on_progress=None, *, key):
         assert schema is Proposal  # No second paid vision request.
         assert usage[0]['completion_tokens'] == 200
         return Proposal.model_validate({"title": "Review messages", "summary": "Two views.",
@@ -192,8 +195,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "DATA", tmp_path)
     monkeypatch.setattr(main, "JOBS", {})
     monkeypatch.setattr(main.automation_store, 'DATABASE', tmp_path / 'automation' / 'state.sqlite3')
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key-never-sent")
-    monkeypatch.setenv("OPENROUTER_MODEL", "mistralai/mistral-large-4-0")
+    monkeypatch.setenv("MISTRAL_API_KEY", "test-key-never-sent")
+    monkeypatch.setenv("MISTRAL_MODEL", "mistral-large-4-0")
     with TestClient(main.app) as client:
         yield client
 

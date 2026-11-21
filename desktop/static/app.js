@@ -444,7 +444,7 @@ function renderPrivacy(job) {
   container.innerHTML = `<div class="page-heading"><div><h1>Review evidence</h1><p>${esc(recordingName(job))}</p></div></div>
     <p class="coverage-note">${job.local_evidence_status === 'unavailable' ? 'Local workflow checks were unavailable.' : `${examples} source/result ${examples === 1 ? 'example matched' : 'examples matched'} on this Mac.`}
     <button class="secondary" id="evidence-local">${job.local_only ? 'Back to local findings' : 'View local findings'}</button></p>
-    ${job.redaction_ready ? `<p>Choose screenshots to share with Mistral through OpenRouter. ${olderMasks ? 'Refresh older masks to keep more of the workflow visible.' : 'Black bars cover detected sensitive values.'} Check each image before including it.</p>
+    ${job.redaction_ready ? `<p>Choose screenshots to send directly to Mistral. ${olderMasks ? 'Refresh older masks to keep more of the workflow visible.' : 'Black bars cover detected sensitive values.'} Check each image before including it.</p>
     <div class="privacy-select"><button class="secondary" id="evidence-select-all" type="button">Select all screenshots</button><button class="secondary" id="evidence-clear-all" type="button" disabled>Clear selection</button>${olderMasks ? '<button class="secondary" id="evidence-refresh" type="button">Refresh masks</button>' : ''}</div>
     <div class="privacy-display"><img id="evidence-image" alt="Exact redacted screenshot"><span id="evidence-image-time" class="meta"></span></div>
     <div class="privacy-grid" id="evidence-frames" aria-label="Redacted screenshots">${job.frames.map(frame => `<div class="privacy-shot"><button class="frame" data-preview="${esc(frame.id)}" aria-label="Preview ${stamp(frame.timestamp)}"><img src="${esc(redactedURL(job.id, frame.id))}" alt="" loading="lazy"><span>${stamp(frame.timestamp)}</span></button><label><input type="checkbox" value="${esc(frame.id)}"> Include ${stamp(frame.timestamp)}</label></div>`).join('')}</div>
@@ -752,18 +752,19 @@ function syncPlayback() {
 }
 
 /* ---- Init ---- */
+async function refreshHealth() {
+  try {
+    const health = await api('/api/health');
+    const el = $('#status');
+    el.classList.toggle('bad', !health.ffmpeg);
+    el.innerHTML = `<span class="dot"></span>${health.ffmpeg ? health.configured ? 'Ready' : 'Local mode' : 'Setup needed'}`;
+    el.title = health.error || (health.configured ? `${health.model} · Mistral connected` : 'Connect Mistral for cloud recording analysis');
+    if (!health.ffmpeg) showError(new Error('FFmpeg is required. Install it and restart the app.'));
+  } catch { showError(new Error('Cannot reach the local server.')); }
+}
+
 async function init() {
-  await Promise.all([loadSamples(), refreshHistory(), (async () => {
-    try {
-      const health = await api('/api/health');
-      const ready = health.ffmpeg;
-      const el = $('#status');
-      el.classList.toggle('bad', !ready);
-      el.innerHTML = `<span class="dot"></span>${ready ? health.configured ? 'Ready' : 'Local mode' : 'Setup needed'}`;
-      el.title = `${health.model} · ${ready ? 'API key configured' : 'Configuration incomplete'}`;
-      if (!ready) showError(new Error('FFmpeg is required. Install it and restart the app.'));
-    } catch { showError(new Error('Cannot reach the local server.')); }
-  })()]);
+  await Promise.all([loadSamples(), refreshHistory(), refreshHealth()]);
   const match = location.hash.match(/^#job=([a-f0-9]{32})$/);
   if (match) openJob(match[1]);
   else if (location.hash === '#recordings') openLibrary();
