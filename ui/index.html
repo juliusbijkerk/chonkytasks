@@ -643,7 +643,7 @@ html.paused *,html.paused *::before,html.paused *::after{animation-play-state:pa
 const $=s=>document.querySelector(s);
 const $$=s=>Array.from(document.querySelectorAll(s));
 let S={}, sel=null, skill=null, cursor=0, poll=null, tick=null, t0=0, selSeg=null;
-let queue=[], lastRun=null, timer=null, wasRunning=false;
+let lastRun=null, timer=null, wasRunning=false;
 const CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
 const esc=s=>{const d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML};
@@ -689,15 +689,10 @@ $('#views').onkeydown=e=>{ const d={ArrowRight:1,ArrowLeft:-1}[e.key]; if(!d) re
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',paintViews);
 paintViews();
 
-/* ---------------- autopilot ----------------
-   After a recording or upload the whole pipeline runs by itself. Voice is
-   skipped when there is no audio, and a failed transcription never blocks. */
-const AFTER_FRAMES=['segment','label','transcribe','observe','describe','rank'];
-function autopilot(stages){ queue=[...stages]; }
-function nextStage(){
-  while(queue[0]==='transcribe'&&!S.has_audio) queue.shift();
-  if(queue.length) stage(queue.shift());
-}
+/* ---------------- pipeline runs on the server ----------------
+   After a recording or upload the server runs every stage by itself, each as
+   soon as the ones it needs are done, so independent ones overlap. */
+const fmtSecs=x=>x==null?'':x<60?x.toFixed(1)+'s':Math.floor(x/60)+'m '+String(Math.round(x%60)).padStart(2,'0')+'s';
 
 /* ---------------- upload: a video, or any number of screenshots ---------------- */
 const drop=$('#drop'), file=$('#file');
@@ -722,9 +717,7 @@ async function send(files){
   const j=await r.json().catch(()=>({error:'bad response'}));
   if(!r.ok||j.error){ dropText('Upload failed',j.error||''); toast('Upload failed: '+(j.error||r.status),true); return; }
   fresh(); toast(vid?'Video uploaded. Working on it.':`${j.frames} screenshots in. Working on them.`);
-  autopilot(AFTER_FRAMES.filter(s=>vid||s!=='transcribe'));
   await refresh();
-  if(!vid) nextStage();          // no frames job to wait for
 }
 
 /* ---------------- record in the browser ----------------
@@ -773,7 +766,7 @@ async function finishRecording(){
   const j=await (await post('/api/record/stop',{})).json().catch(()=>({error:'bad response'}));
   if(j.error){ toast(j.error,true); refresh(); return; }
   toast(`Recorded ${fmtDur(j.seconds)}. Working on it.`);
-  autopilot(AFTER_FRAMES); refresh();
+  refresh();
 }
 $('#recbtn').onclick=startRecording;
 $('#stopbtn').onclick=stopRecording;
@@ -790,7 +783,6 @@ const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
 function feedItems(){
   const st=Object.fromEntries((S.stages||[]).map(s=>[s.name,s])), j=S.job||{}, src=S.source||{};
   const segs=S.segments||[], labels=segs.map(x=>x.label).filter(Boolean), pr=S.process;
-  const later=n=>(S.stages||[]).slice((S.stages||[]).findIndex(s=>s.name===n)+1).some(s=>s.status!=='todo');
   const it=[];
   const mb=S.input_mb!=null?` · ${S.input_mb} MB`:'';
   it.push({k:'input',status:R.rec?'running':S.has_input?'done':'todo',
@@ -798,14 +790,14 @@ function feedItems(){
       :src.kind==='recording'?'Recording received':S.has_input?'Video received':'Waiting for a recording',
     s:R.rec?'Do the task, then come back and press stop.':src.kind==='recording'?`${fmtDur(src.seconds||0)} long${mb}`:src.name?src.name+mb:''});
   const line=(k,doneT,doneS,todoT)=>{ const x=st[k]; if(!x) return;
-    let status=x.status;
-    if(k==='transcribe'&&status==='todo'&&!S.has_audio&&later(k)) status='skipped';
+    let status=x.status==='queued'?'todo':x.status;
+    if(k==='transcribe'&&status==='todo'&&!S.has_audio&&(S.stages||[]).some(s=>s.name==='observe'&&s.status!=='todo'&&s.status!=='queued')) status='skipped';
     const running=status==='running';
     it.push({k,status,
       t:status==='done'?doneT(x):status==='skipped'?'No voice in this one, skipped':status==='failed'?`${x.label} failed`:running?VERB[k]:todoT,
       s:status==='done'?doneS(x):status==='failed'?'Open pipeline details below for the error.':running&&k==='observe'&&(S.steps||[]).length?
         `${plural(S.steps.length,'action')} so far`:'',
-      x:running?`${j.elapsed||0}s`:''});
+      x:(running||status==='done'||status==='failed')&&x.seconds!=null?fmtSecs(x.seconds):''});
   };
   line('frames',x=>src.kind==='screenshots'?`${plural(x.count,'frame')} ready`:`Kept ${plural(x.count,'frame')} where something changed`,
     ()=> 'Near-identical frames are dropped before anything is sent to a model.','Look through the video');
@@ -840,39 +832,38 @@ function renderPipe(){
   }
   st.forEach((s,i)=>{
     const b=pipe.children[i].firstChild;
-    const ct=s.status==='running'?'running · '+(j.elapsed||0)+'s'
+    const ct=s.status==='running'?'running · '+fmtSecs(s.seconds)
       :s.status==='failed'?'failed, see log':s.count?s.count+' '+s.unit:'not run';
     b.dataset.status=s.status; b.disabled=!!j.running||!!R.rec;
     b.querySelector('.ct').textContent=ct;
     b.setAttribute('aria-label',`${s.label}: ${ct}. Run this stage.`);
   });
-  const done=st.filter(s=>s.status==='done').length, busy=!!j.running||queue.length>0;
+  const done=st.filter(s=>s.status==='done'||s.status==='skipped').length, busy=!!j.running;
   const failed=st.find(s=>s.status==='failed');
   $('#pfill').style.width=(st.length?100*(done+(j.running?.5:0))/st.length:0)+'%';
   $('#pbar').classList.toggle('run',!!j.running); $('#pbar').setAttribute('aria-valuenow',done);
   const jl=$('#jobline');
   if(R.rec) jl.textContent='Recording…';
-  else if(j.running||queue.length) jl.textContent='Working on it…';
+  else if(j.running) jl.textContent=(j.running_stages||[]).length>1?`Working on it · ${j.running_stages.length} steps at once`:'Working on it…';
   else if(failed) jl.textContent='Stopped at a step';
-  else if(done===st.length) jl.innerHTML='Done. <a href="#steps">See the process ↓</a>';
+  else if(done===st.length) jl.innerHTML=(S.pipeline&&S.pipeline.seconds?`Done in ${fmtSecs(S.pipeline.seconds)}. `:'Done. ')+'<a href="#steps">See the process ↓</a>';
   else jl.textContent=`${done} of ${st.length} steps done`;
-  $('#feedMeta').textContent=j.running||queue.length?`${done}/${st.length}`:'';
+  $('#feedMeta').textContent=j.running?`${done}/${st.length} · ${fmtSecs(j.elapsed)}`:'';
   renderFeed();
   const showRun=!busy&&!R.rec&&S.has_input&&done<st.length;
   $('#runall').classList.toggle('hide',!showRun); $('#runall').disabled=!showRun;
   if(j.log&&j.log.length){ const p=$('#log'); p.classList.remove('hide');
     p.textContent=j.log.join('\n'); p.scrollTop=1e6; }
 }
-$('#pipe').onclick=e=>{ const b=e.target.closest('[data-stage]'); if(b&&!b.disabled){ queue=[]; stage(b.dataset.stage); } };
+$('#pipe').onclick=e=>{ const b=e.target.closest('[data-stage]'); if(b&&!b.disabled) stage(b.dataset.stage); };
 
 async function stage(name){
   const r=await post('/api/stage',{name}); const j=await r.json();
-  if(j.error){ toast(j.error,true); queue=[]; }
+  if(j.error) toast(j.error,true);
   refresh();
 }
 function runAll(){
-  autopilot((S.stages||[]).filter(s=>s.status!=='done').map(s=>s.name));
-  nextStage();
+  post('/api/pipeline',{}).then(r=>r.json()).then(j=>{ if(j.error) toast(j.error,true); refresh(); });
 }
 $('#runall').onclick=runAll;
 
@@ -882,10 +873,8 @@ async function refresh(){
   catch(e){ clearTimeout(timer); timer=setTimeout(refresh,2000); return; }
   const j=S.job||{};
   if(wasRunning&&!j.running){
-    if(j.exit&&j.name==='transcribe'){ toast('No narration this time, carrying on'); nextStage(); }
-    else if(j.exit){ toast(`${VERB[j.name]||j.name} failed. Open pipeline details.`,true); queue=[]; $('#logbox').open=true; }
-    else if(queue.length) nextStage();
-    else toast('All done. Scroll down for what we found.');
+    if(j.failed){ toast(`${VERB[j.failed]||j.failed} failed. Open pipeline details.`,true); $('#logbox').open=true; }
+    else toast(`All done${S.pipeline&&S.pipeline.seconds?' in '+fmtSecs(S.pipeline.seconds):''}. Scroll down for what we found.`);
   }
   wasRunning=!!j.running;
   renderPipe(); renderSegs(); renderSteps(); renderOpps(); renderNav(); mirror();

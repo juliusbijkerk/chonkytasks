@@ -15,6 +15,7 @@ in Notes" means everything. Set MISTRAL_LABEL_MODEL to a small vision model;
 naming a screen does not need the big one.
 """
 import argparse, base64, json, os, sys, time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import httpx
 
@@ -81,15 +82,25 @@ def main():
         sys.exit("No segments.json. Run segment.py first.")
     segs = json.loads(path.read_text())
 
-    print(f"  labelling {len(segs)} parts with {MODEL}\n")
-    with httpx.Client(timeout=120) as client:
-        for s in segs:
-            if s.get("label") and not args.force:
-                print(f"  {s['id']}  (already labelled, skipping)")
-                continue
-            t0 = time.time()
+    todo = [s for s in segs if args.force or not s.get("label")]
+    for s in segs:
+        if s not in todo:
+            print(f"  {s['id']}  (already labelled, skipping)")
+    workers = max(1, int(os.environ.get("MISTRAL_CONCURRENCY", "4")))
+    print(f"  labelling {len(todo)} parts with {MODEL}, {workers} at a time\n")
+
+    def work(s):
+        t0 = time.time()
+        return label_one(client, key, s), time.time() - t0
+
+    # Parts are independent, so several go at once. Results land here on the
+    # main thread, which is the only place the file is written.
+    with httpx.Client(timeout=120) as client, ThreadPoolExecutor(workers) as pool:
+        futs = {pool.submit(work, s): s for s in todo}
+        for fut in as_completed(futs):
+            s = futs[fut]
             try:
-                got = label_one(client, key, s)
+                got, dt = fut.result()
             except Exception as e:
                 print(f"  {s['id']}  failed: {e}", file=sys.stderr)
                 continue
@@ -101,7 +112,7 @@ def main():
             path.write_text(json.dumps(segs, indent=2))
             print(f"  {s['id']}  {s['label']}"
                   f"{'  [' + s['app'] + ']' if s.get('app') else ''}"
-                  f"  ({time.time() - t0:.1f}s)")
+                  f"  ({dt:.1f}s)")
 
     print(f"\n  -> {path}")
 

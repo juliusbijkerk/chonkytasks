@@ -12,7 +12,7 @@ automating, then run the automation.
 Agents: start at /llms.txt. /api lists every endpoint, /api/report.md is the
 current state as Markdown, /api/state is the same as JSON.
 """
-import json, mimetypes, re, shutil, subprocess, sys, threading, time
+import json, mimetypes, os, re, shutil, subprocess, sys, threading, time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -21,7 +21,26 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "out"
 
 # One stage at a time. The log is what the page shows while it waits.
-JOB = {"name": None, "proc": None, "log": [], "started": 0}
+JOBS = {}      # stage name -> {"proc", "started", "ended", "exit"}
+LOG = []       # merged output of every stage, each line tagged with its stage
+PIPE = {"active": False, "plan": [], "pending": [], "skipped": set(), "cancelled": set(),
+        "failed": None, "started": 0, "ended": 0}
+LOCK = threading.Lock()
+
+# What each stage needs before it can start. Anything not on the same path runs
+# side by side: transcribe alongside segment/label, describe alongside rank.
+DEPS = {"frames": [], "segment": ["frames"], "transcribe": ["frames"],
+        "label": ["segment"], "observe": ["segment", "transcribe"],
+        "describe": ["observe"], "rank": ["observe"]}
+SOFT = {"transcribe", "label"}   # nice to have: a failure here does not stop the run
+
+
+def running_names():
+    return [n for n, j in JOBS.items() if j["proc"].poll() is None]
+
+
+def busy():
+    return PIPE["active"] or bool(running_names())
 RUN = {"proc": None, "id": None}
 
 VIDEO_EXT = (".mp4", ".webm", ".mov", ".mkv", ".m4v")
@@ -49,6 +68,8 @@ def reset_outputs():
     for ext in VIDEO_EXT:
         (OUT / f"recording{ext}").unlink(missing_ok=True)
     shutil.rmtree(OUT / "frames", ignore_errors=True)
+    JOBS.clear()
+    LOG.clear()
 
 
 def frame_every(path, seconds=None):
@@ -76,6 +97,8 @@ def frames_cmd(v):
             f'&& echo "audio -> out/recording.wav" || {{ rm -f out/recording.wav; echo "no audio track, skipping voice"; }}; '
             f'exec "{ROOT}/pipeline/sample_frames.py" "{v}" --every {every}']
 
+
+PIPELINE = ["frames", "segment", "label", "transcribe", "observe", "describe", "rank"]
 
 STAGES = {
     "frames":        lambda v: frames_cmd(v),
@@ -113,6 +136,7 @@ API = [
     {"method": "POST", "path": "/api/record/start", "body": '{"mime": "video/webm"}', "does": "starts a streamed browser recording; clears downstream output"},
     {"method": "POST", "path": "/api/record/chunk", "body": "raw bytes", "does": "appends the next recorder chunk, in order"},
     {"method": "POST", "path": "/api/record/stop", "does": "finishes the recording and starts 'frames'"},
+    {"method": "POST", "path": "/api/pipeline", "body": '{"stages": [...]} (optional)', "does": "runs those stages (default: everything not done), in parallel where they do not depend on each other"},
     {"method": "POST", "path": "/api/stage", "body": '{"name": "<stage>"}', "does": "runs one pipeline stage; 409 if one is already running"},
     {"method": "POST", "path": "/api/compile", "body": '{"id": "<opportunity id>"}', "does": "compiles an opportunity into a skill (blocking, up to 300s)"},
     {"method": "POST", "path": "/api/run", "body": '{"id": "<skill id>", "params": {...}, "headed": false}', "does": "replays the skill; poll /api/events"},
@@ -134,18 +158,24 @@ def stage_status():
     }
     unit = {"frames": "frames", "segment": "parts", "label": "named",
             "transcribe": "words", "observe": "actions", "describe": "steps", "rank": "loops"}
-    proc = JOB["proc"]
-    running = proc is not None and proc.poll() is None
     out = []
+    now = time.time()
     for name, label, what in STAGE_INFO:
         st = "done" if facts[name] else "todo"
-        if JOB["name"] == name:
-            if running:
+        j = JOBS.get(name)
+        secs = None
+        if j:
+            secs = round((j["ended"] or now) - j["started"], 1)
+            if j["ended"] == 0:
                 st = "running"
-            elif proc is not None and proc.returncode not in (0, None):
+            elif j["exit"]:
                 st = "failed"
+        if name in PIPE["skipped"]:
+            st = "skipped"
+        elif name in PIPE["pending"]:
+            st = "queued" if st != "done" else st
         out.append({"name": name, "label": label, "does": what, "status": st,
-                    "count": facts[name], "unit": unit[name]})
+                    "count": facts[name], "unit": unit[name], "seconds": secs})
     return out
 
 
@@ -289,22 +319,69 @@ def jload(p, default):
         return default
 
 
-def pump(proc):
+def pump(name, job):
+    proc = job["proc"]
     for line in iter(proc.stdout.readline, b""):
-        JOB["log"].append(line.decode(errors="replace").rstrip())
-        del JOB["log"][:-400]
+        with LOCK:
+            LOG.append(f"[{name}] {line.decode(errors='replace').rstrip()}")
+            del LOG[:-600]
+    job["exit"] = proc.wait()
+    job["ended"] = time.time()
+    with LOCK:
+        LOG.append(f"[{name}] finished in {job['ended'] - job['started']:.1f}s"
+                   + (f" (exit {job['exit']})" if job["exit"] else ""))
 
 
 def start_job(name, video=None):
-    if JOB["proc"] is not None and JOB["proc"].poll() is None:
-        return False, f"{JOB['name']} is still running"
+    if name in running_names():
+        return False, f"{name} is already running"
     cmd = [str(ROOT / c) if c.startswith("pipeline/") else c
            for c in STAGES[name](video)]
-    JOB.update(name=name, log=[f"$ {' '.join(Path(c).name for c in cmd)}"],
-               started=time.time())
-    JOB["proc"] = subprocess.Popen(
-        cmd, cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    threading.Thread(target=pump, args=(JOB["proc"],), daemon=True).start()
+    with LOCK:
+        LOG.append(f"[{name}] $ {' '.join(Path(c).name for c in cmd)}")
+    job = {"started": time.time(), "ended": 0, "exit": None,
+           "proc": subprocess.Popen(cmd, cwd=str(ROOT), stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT,
+                                    env={**os.environ, "PYTHONUNBUFFERED": "1"})}
+    JOBS[name] = job
+    threading.Thread(target=pump, args=(name, job), daemon=True).start()
+    return True, None
+
+
+def run_pipeline(plan, video=None):
+    """Run the stages in `plan`, each as soon as the ones it needs are done."""
+    PIPE.update(active=True, plan=list(plan), pending=list(plan), skipped=set(),
+                cancelled=set(), failed=None, started=time.time(), ended=0)
+    finished = set(n for n in STAGES if n not in plan)
+    try:
+        while PIPE["pending"] or any(n in running_names() for n in plan):
+            for n in plan:
+                j = JOBS.get(n)
+                if n in finished or n in PIPE["pending"] or not j or j["ended"] == 0:
+                    continue
+                finished.add(n)
+                if j["exit"] and n not in SOFT:
+                    PIPE["failed"] = n
+                    PIPE["cancelled"] = set(PIPE["pending"])
+                    PIPE["pending"] = []
+            for n in list(PIPE["pending"]):
+                if all(d in finished for d in DEPS[n]):
+                    PIPE["pending"].remove(n)
+                    if n == "transcribe" and not (OUT / "recording.wav").exists():
+                        PIPE["skipped"].add(n)
+                        finished.add(n)
+                        continue
+                    start_job(n, video if n == "frames" else None)
+            time.sleep(0.3)
+    finally:
+        PIPE.update(active=False, ended=time.time())
+
+
+def start_pipeline(plan, video=None):
+    if busy():
+        return False, "something is still running"
+    JOBS.clear()
+    threading.Thread(target=run_pipeline, args=(plan, video), daemon=True).start()
     return True, None
 
 
@@ -361,8 +438,12 @@ class H(SimpleHTTPRequestHandler):
                                "endpoints": API})
 
         if u.path == "/api/state":
-            proc = JOB["proc"]
-            running = proc is not None and proc.poll() is None
+            names = running_names()
+            # a soft stage (voice, names) failing is shown on its line, not as a stopped run
+            failed = PIPE["failed"] or next((n for n, j in JOBS.items() if j["exit"] and j["ended"]
+                                             and (n not in SOFT or len(PIPE["plan"]) == 1)), None)
+            total = ((time.time() if PIPE["active"] else PIPE["ended"]) - PIPE["started"]
+                     if PIPE["started"] else 0)
             return self._json({
                 "app": NAME,
                 "source": source(),
@@ -372,11 +453,14 @@ class H(SimpleHTTPRequestHandler):
                               "seconds": round(time.time() - REC["started"], 1) if REC["file"] else 0,
                               "mb": round(REC["bytes"] / 1e6, 1)},
                 "stages": stage_status(),
-                "job": {"name": JOB["name"], "running": running,
-                        "exit": None if running or proc is None else proc.returncode,
-                        "log": JOB["log"][-40:],
-                        "elapsed": round(time.time() - JOB["started"], 1)
-                        if JOB["started"] else 0},
+                "job": {"name": ", ".join(names) or failed, "running": busy(),
+                        "running_stages": names,
+                        "exit": (JOBS[failed]["exit"] if failed and not busy() else None),
+                        "failed": failed if not busy() else None,
+                        "log": LOG[-60:],
+                        "elapsed": round(total, 1)},
+                "pipeline": {"active": PIPE["active"], "plan": PIPE["plan"],
+                             "seconds": round(total, 1)},
                 "has_video": find_video() is not None,
                 "segments": jload(OUT / "segments.json", []),
                 "steps": jload(OUT / "steps.json", []),
@@ -435,8 +519,8 @@ class H(SimpleHTTPRequestHandler):
 
             if not readline().startswith(boundary):
                 return self._json({"error": "malformed body"}, 400)
-            if JOB["proc"] is not None and JOB["proc"].poll() is None:
-                return self._json({"error": f"{JOB['name']} is still running"}, 409)
+            if busy():
+                return self._json({"error": "something is still running"}, 409)
             filename = None
             while True:                       # part headers, ends on a blank line
                 ln = readline()
@@ -475,7 +559,7 @@ class H(SimpleHTTPRequestHandler):
                     f.truncate(max(0, end - 64) + cut)
             (OUT / "source.json").write_text(json.dumps(
                 {"kind": "video", "file": dest.name, "name": filename}))
-            ok, err = start_job("frames", dest)
+            ok, err = start_pipeline(PIPELINE, dest)
             return self._json({"ok": ok, "error": err,
                                "mb": round(dest.stat().st_size / 1e6, 1)})
 
@@ -488,8 +572,8 @@ class H(SimpleHTTPRequestHandler):
             m = re.search(r"boundary=(?:\"([^\"]+)\"|([^;]+))", ctype)
             if not m:
                 return self._json({"error": "expected multipart"}, 400)
-            if JOB["proc"] is not None and JOB["proc"].poll() is None:
-                return self._json({"error": f"{JOB['name']} is still running"}, 409)
+            if busy():
+                return self._json({"error": "something is still running"}, 409)
             body = self.rfile.read(n)
             parts = []
             for chunk in body.split(b"--" + (m.group(1) or m.group(2)).strip().encode()):
@@ -518,6 +602,7 @@ class H(SimpleHTTPRequestHandler):
             (frames / "manifest.json").write_text(json.dumps(manifest, indent=2))
             (OUT / "source.json").write_text(json.dumps(
                 {"kind": "screenshots", "count": len(manifest)}))
+            start_pipeline([n for n in PIPELINE if n not in ("frames", "transcribe")])
             return self._json({"ok": True, "frames": len(manifest)})
 
         # Browser recording, streamed in chunks so an hour (or a week) never
@@ -525,8 +610,8 @@ class H(SimpleHTTPRequestHandler):
         if u.path == "/api/record/start":
             if REC["file"] is not None:
                 return self._json({"error": "already recording"}, 409)
-            if JOB["proc"] is not None and JOB["proc"].poll() is None:
-                return self._json({"error": f"{JOB['name']} is still running"}, 409)
+            if busy():
+                return self._json({"error": "something is still running"}, 409)
             n = int(self.headers.get("Content-Length", 0))
             mime = json.loads(self.rfile.read(n) or b"{}").get("mime", "")
             OUT.mkdir(exist_ok=True)
@@ -571,7 +656,7 @@ class H(SimpleHTTPRequestHandler):
             (OUT / "source.json").write_text(json.dumps(
                 {"kind": "recording", "file": dest.name, "seconds": round(secs, 1),
                  "every": frame_every(dest, secs)}))
-            ok, err = start_job("frames", dest)
+            ok, err = start_pipeline(PIPELINE, dest)
             return self._json({"ok": ok, "error": err, "seconds": round(secs, 1),
                                "mb": round(dest.stat().st_size / 1e6, 1)})
 
@@ -580,8 +665,21 @@ class H(SimpleHTTPRequestHandler):
             name = json.loads(self.rfile.read(n) or b"{}").get("name")
             if name not in STAGES:
                 return self._json({"error": f"unknown stage {name}"}, 400)
-            ok, err = start_job(name)
+            if busy():
+                return self._json({"error": "something is still running"}, 409)
+            ok, err = start_pipeline([name])
             return self._json({"ok": ok, "error": err}, 200 if ok else 409)
+
+        if u.path == "/api/pipeline":
+            # Run the given stages, or everything not done yet, in dependency order.
+            n = int(self.headers.get("Content-Length", 0))
+            want = json.loads(self.rfile.read(n) or b"{}").get("stages")
+            if not want:
+                st = {x["name"]: x["status"] for x in stage_status()}
+                want = [k for k in PIPELINE if st.get(k) != "done"]
+            want = [k for k in PIPELINE if k in want]
+            ok, err = start_pipeline(want)
+            return self._json({"ok": ok, "error": err, "stages": want}, 200 if ok else 409)
 
         if u.path == "/api/run":
             n = int(self.headers.get("Content-Length", 0))
