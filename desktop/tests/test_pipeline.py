@@ -238,6 +238,67 @@ def test_inbox_endpoint_accepts_only_safe_names(client, tmp_path):
     assert (tmp_path / job["id"] / "source.mov").read_bytes() == b"not a video"
 
 
+def test_captured_recording_retries_reuse_saved_job_and_preserve_history(client, tmp_path, monkeypatch):
+    launches = []
+    def save_only(job):
+        launches.append(job['id'])
+        main.persist(job)
+    monkeypatch.setattr(main, 'launch', save_only)
+    old = main.new_job('Existing recording.mp4', '')
+    old.update(status='completed', source_name='source.mp4')
+    main.persist(old)
+    original = tmp_path / old['id'] / 'source.mp4'
+    original.write_bytes(b'existing video')
+    inbox = tmp_path / 'inbox'
+    inbox.mkdir()
+    name = 'c' * 32 + '.mp4'
+    (inbox / name).write_bytes(b'captured video')
+    first = client.post('/api/jobs/from-inbox', data={'name': name, 'filename': 'New recording.mp4', 'context': 'A repeated task'})
+    assert first.status_code == 202
+    job = first.json()
+    # A retry after a lost acknowledgement also works after the app reloads its ledger.
+    persisted = json.loads((tmp_path / job['id'] / 'job.json').read_text())
+    main.JOBS[job['id']] = persisted
+    monkeypatch.delenv('OPENROUTER_API_KEY')
+    retry = client.post('/api/jobs/from-inbox', data={'name': name})
+    assert retry.status_code == 202 and retry.json()['id'] == job['id']
+    assert launches == [job['id']]
+    assert original.read_bytes() == b'existing video'
+    assert {item['id'] for item in client.get('/api/jobs').json()} == {old['id'], job['id']}
+    assert (tmp_path / job['id'] / 'source.mp4').read_bytes() == b'captured video'
+
+
+def test_browser_capture_retry_does_not_create_duplicate_analysis(client, monkeypatch):
+    launches = []
+    def save_only(job):
+        launches.append(job['id'])
+        main.persist(job)
+    monkeypatch.setattr(main, 'launch', save_only)
+    token = 'd' * 32
+    data = {'capture_id': token, 'context': 'Screen capture'}
+    first = client.post('/api/jobs', data=data, files={'file': ('capture.webm', b'video')})
+    assert first.status_code == 202
+    monkeypatch.delenv('OPENROUTER_API_KEY')
+    again = client.post('/api/jobs', data=data, files={'file': ('capture.webm', b'video')})
+    assert again.status_code == 202 and again.json()['id'] == first.json()['id']
+    assert launches == [first.json()['id']]
+    assert client.post('/api/jobs', data={'capture_id': '../invalid'}, files={'file': ('capture.webm', b'video')}).status_code == 400
+
+
+def test_captured_video_is_not_consumed_before_job_is_saved(client, tmp_path, monkeypatch):
+    inbox = tmp_path / 'inbox'
+    inbox.mkdir()
+    name = 'e' * 32 + '.mp4'
+    source = inbox / name
+    source.write_bytes(b'new capture')
+    def fail_to_save(job):
+        raise OSError('Disk unavailable')
+    monkeypatch.setattr(main, 'launch', fail_to_save)
+    with pytest.raises(OSError):
+        client.post('/api/jobs/from-inbox', data={'name': name})
+    assert source.read_bytes() == b'new capture'
+
+
 def test_delete_removes_only_the_saved_recording_and_report(client, tmp_path):
     original = tmp_path / "original.mov"
     original.write_bytes(b"original recording")

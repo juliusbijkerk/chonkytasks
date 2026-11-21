@@ -5,7 +5,6 @@ const fmtDate = (date) => new Intl.DateTimeFormat(undefined, {month: 'short', da
 const fmtRecordingDate = (date) => new Intl.DateTimeFormat(undefined, {month: 'short', day: 'numeric'}).format(new Date(date));
 const fmtSize = (bytes) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
-let selectedFile = null;
 let pollTimer = null;
 let jobEvents = null;
 let batchSignature = '';
@@ -106,10 +105,6 @@ function showView(name) {
 }
 function home() {
   stopWatching(); activeJobId = null;
-  selectedFile = null; $('#file-input').value = ''; $('#context').value = '';
-  $('#drop-title').textContent = 'Drop a screen recording';
-  $('#drop-sub').innerHTML = 'or <span class="browse">choose a file</span>';
-  $('#analyze-button').disabled = true;
   history.replaceState(null, '', '/'); clearError(); showView('home'); refreshHistory();
   closeMobileSidebar(); window.scrollTo(0, 0);
 }
@@ -213,40 +208,17 @@ $('#report-nav').addEventListener('click', (event) => {
   document.getElementById(button.dataset.section)?.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start'});
 });
 
-/* ---- Home: drop / choose a recording ---- */
-function chooseFile(file) {
-  if (!file) return;
-  clearError();
-  if (!/\.(mp4|mov|mkv|webm|m4v)$/i.test(file.name)) return showError(new Error('Please choose an MP4, MOV, WebM, MKV, or M4V video.'));
-  if (file.size > 500 * 1024 * 1024) return showError(new Error('Please choose a video smaller than 500 MB.'));
-  selectedFile = file;
-  $('#drop-title').textContent = file.name;
-  $('#drop-sub').textContent = `${fmtSize(file.size)} · ready`;
-  $('#analyze-button').disabled = false;
-}
-$('#dropzone').addEventListener('click', () => $('#file-input').click());
-$('#dropzone').addEventListener('keydown', (event) => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); $('#file-input').click(); } });
-$('#file-input').addEventListener('change', (event) => chooseFile(event.target.files[0]));
-for (const type of ['dragenter', 'dragover']) $('#dropzone').addEventListener(type, (event) => { event.preventDefault(); $('#dropzone').classList.add('dragging'); });
-for (const type of ['dragleave', 'drop']) $('#dropzone').addEventListener(type, (event) => { event.preventDefault(); $('#dropzone').classList.remove('dragging'); });
-$('#dropzone').addEventListener('drop', (event) => chooseFile(event.dataTransfer.files[0]));
+/* Existing native file imports still use the same analysis pipeline. */
 window.addEventListener('dragover', (event) => event.preventDefault());
 window.addEventListener('drop', (event) => event.preventDefault());
 
 async function submit(path, form) {
-  if (pending) return;
-  pending = true; clearError(); $('#analyze-button').disabled = true;
-  try { const job = await api(path, {method: 'POST', body: form}); openJob(job.id); }
-  catch (error) { showError(error); }
-  finally { pending = false; $('#analyze-button').disabled = !selectedFile; }
+  if (pending) return null;
+  pending = true; clearError();
+  try { const job = await api(path, {method: 'POST', body: form}); openJob(job.id); return job; }
+  catch (error) { showError(error); return null; }
+  finally { pending = false; }
 }
-$('#analyze-button').addEventListener('click', () => {
-  if (!selectedFile) return;
-  const form = new FormData();
-  form.append('context', $('#context').value);
-  form.append('file', selectedFile);
-  submit('/api/jobs', form);
-});
 
 /* Bridge used by the native macOS app: it copies a dropped file into the server
    inbox and hands over just the inbox name. */
@@ -260,21 +232,6 @@ window.aiDiscovery = window.flowlens = {
   },
   home
 };
-
-async function loadSamples() {
-  try {
-    const samples = await api('/api/samples');
-    const box = $('#samples');
-    if (!samples.length) { box.innerHTML = ''; return; }
-    box.innerHTML = `<div class="label">On your Desktop</div>` + samples.slice(0, 3).map((s) =>
-      `<button data-sample="${esc(s.id)}">${esc(s.name)}<small>${fmtSize(s.size)} · ${esc(fmtRecordingDate(s.modified_at))}</small></button>`).join('');
-    box.querySelectorAll('[data-sample]').forEach((button) => button.addEventListener('click', () => {
-      const form = new FormData();
-      form.append('context', $('#context').value);
-      submit(`/api/samples/${button.dataset.sample}/analyze`, form);
-    }));
-  } catch { /* optional convenience list */ }
-}
 
 async function refreshHistory() {
   if (historyRequest) return historyRequest;
@@ -615,7 +572,7 @@ function syncPlayback() {
 
 /* ---- Init ---- */
 async function init() {
-  await Promise.all([loadSamples(), refreshHistory(), (async () => {
+  await Promise.all([refreshHistory(), (async () => {
     try {
       const health = await api('/api/health');
       const ready = health.configured && health.ffmpeg && !health.error;

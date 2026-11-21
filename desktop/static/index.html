@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="chonkytasks — drop a screen recording, get a plain summary of what happened and concrete suggestions.">
+  <meta name="description" content="chonkytasks — record your workflow, get a plain summary of what happened and concrete suggestions.">
   <title>chonkytasks</title>
   <meta name="color-scheme" content="light">
   <link rel="icon" type="image/svg+xml" href="/static/brand/mark-mistral.svg">
@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/static/chonkytasks.css">
   <script src="/static/brand-motion.js" defer></script>
   <script src="/static/app.js" defer></script>
+  <script src="/static/recording.js" defer></script>
   <script src="/static/automations.js" defer></script>
   <script src="/static/activity.js" defer></script>
   <script src="/static/drafts.js" defer></script>
@@ -48,25 +49,26 @@
     <header class="toolbar">
       <button class="icon-button" id="sidebar-toggle" aria-label="Hide sidebar" aria-controls="sidebar" aria-expanded="true" title="Toggle sidebar"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2"/><path d="M8 4v12M5 7h.1M5 10h.1"/></svg></button>
       <span class="toolbar-title" id="view-title">New recording</span>
+      <button class="capture-quick-stop" id="capture-quick-stop" hidden><span class="capture-dot" aria-hidden="true"></span><span id="capture-quick-label">Stop recording</span></button>
     </header>
     <main id="main-content">
     <div id="error" class="error" role="alert" hidden></div>
 
     <section id="home-view">
       <div class="page-heading"><h1>New recording</h1><p>See the steps. Automate the repeat.</p></div>
-      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Drop a screen recording or choose a file">
-        <input type="file" id="file-input" accept=".mp4,.mov,.webm,.mkv,.m4v" hidden>
-        <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>
-        <p class="drop-title" id="drop-title">Drop a screen recording</p>
-        <p class="drop-sub" id="drop-sub">or <span class="browse">choose a file</span></p>
-        <p class="drop-note">MP4, MOV, WebM, MKV or M4V · Up to 500 MB</p>
+      <div class="capture-card" id="capture-card" data-state="idle">
+        <div class="capture-art" aria-hidden="true"><svg viewBox="0 0 120 90"><rect x="12" y="8" width="96" height="62" rx="9"/><path d="M44 82h32M60 70v12"/></svg><img src="/static/brand/mark-mistral.svg" alt="" width="52" height="52"></div>
+        <h2 id="capture-title">Record your workflow</h2>
+        <p id="capture-description">Choose a screen or window, then work as usual.</p>
+        <div class="capture-clock" id="capture-clock" hidden><span class="capture-dot" aria-hidden="true"></span><span id="capture-time" aria-label="Recording duration">0:00</span></div>
+        <p id="capture-status" class="capture-status" role="status" aria-live="polite">Your recording will be analyzed when you stop.</p>
+        <button class="primary capture-button" id="capture-button"><span class="capture-button-symbol" aria-hidden="true"></span><span id="capture-button-label">Start recording</span></button>
+        <p class="capture-note">Screen only · Up to 15 minutes</p>
       </div>
       <div class="context-row">
         <input type="text" id="context" maxlength="2000" placeholder="What were you working on? (optional)" aria-label="What were you working on? (optional)" autocomplete="off">
-        <button class="primary" id="analyze-button" disabled>Analyze</button>
       </div>
-      <p class="hint">Start with a recording of a task you repeat.</p>
-      <div class="samples" id="samples"></div>
+      <p class="hint">Record a task you repeat. You can stop from any page in the app.</p>
     </section>
 
     <section id="library-view" hidden>

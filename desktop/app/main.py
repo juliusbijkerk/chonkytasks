@@ -40,6 +40,7 @@ JOBS: dict[str, dict] = {}
 TASKS: set = set()
 SUBSCRIBERS: dict[str, set[asyncio.Queue]] = {}
 SLOTS = asyncio.Semaphore(2)
+CAPTURE_INGEST_LOCK = asyncio.Lock()
 
 
 def persist(job):
@@ -311,13 +312,29 @@ async def list_jobs():
 
 
 @app.post("/api/jobs", status_code=202)
-async def upload(file: UploadFile = File(...), context: str = Form("")):
+async def upload(file: UploadFile = File(...), context: str = Form(""), capture_id: str = Form("")):
+    if not capture_id:
+        return await save_upload(file, context)
+    if not re.fullmatch(r"[0-9a-f]{32}", capture_id):
+        raise HTTPException(400, "Invalid recording identifier.")
+    # A lost response can be retried without creating another paid analysis.
+    async with CAPTURE_INGEST_LOCK:
+        existing = next((job for job in JOBS.values() if job.get("capture_id") == capture_id), None)
+        if existing:
+            await file.close()
+            return existing
+        return await save_upload(file, context, capture_id)
+
+
+async def save_upload(file: UploadFile, context: str, capture_id: str = ""):
     ensure_ready()
     name = Path(file.filename or "recording.mp4").name
     extension = Path(name).suffix.lower()
     if extension not in EXTENSIONS:
         raise HTTPException(415, "Choose an MP4, MOV, WebM, MKV, or M4V video.")
     job = new_job(name, context)
+    if capture_id:
+        job["capture_id"] = capture_id
     folder = DATA / job["id"]
     folder.mkdir()
     job["source_name"] = "source" + extension
@@ -380,9 +397,12 @@ async def analyze_sample(recording_id: str, context: str = Form("")):
 async def analyze_inbox(name: str = Form(...), filename: str = Form(""), context: str = Form("")):
     # Used by the macOS app: it copies a dropped recording into data/jobs/inbox as
     # "<32 hex chars>.<ext>" and posts only that name. Never accept arbitrary paths.
-    ensure_ready()
     if not INBOX_NAME.fullmatch(name.lower()):
         raise HTTPException(400, "Invalid inbox file name.")
+    existing = next((job for job in JOBS.values() if job.get("inbox_name") == name), None)
+    if existing:
+        return existing
+    ensure_ready()
     source = (inbox_dir() / name).resolve()
     if source.parent != inbox_dir().resolve() or not source.is_file():
         raise HTTPException(404, "This file is not in the inbox.")
@@ -392,6 +412,7 @@ async def analyze_inbox(name: str = Form(...), filename: str = Form(""), context
         raise HTTPException(413, "Please use a recording smaller than 500 MB.")
     display = Path(filename).name if filename else "recording" + source.suffix.lower()
     job = new_job(display, context)
+    job["inbox_name"] = name
     folder = DATA / job["id"]
     folder.mkdir()
     job["source_name"] = "source" + source.suffix.lower()
@@ -400,8 +421,8 @@ async def analyze_inbox(name: str = Form(...), filename: str = Form(""), context
     except BaseException:
         shutil.rmtree(folder, ignore_errors=True)
         raise
-    source.unlink(missing_ok=True)
     launch(job)
+    source.unlink(missing_ok=True)
     return job
 
 

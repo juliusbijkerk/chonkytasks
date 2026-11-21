@@ -41,7 +41,7 @@ main { padding-top: 40px; }
 .page-heading h1 { font-size: 32px; line-height: 1.15; font-weight: 700; letter-spacing: -.035em; }
 .page-heading p { font-size: 16px; margin-top: 10px; }
 #home-view .page-heading h1 { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.dropzone, .suggestion, .step-panel, .request-status, .recording-list, #activity-list, #busy-view {
+.dropzone, .capture-card, .suggestion, .step-panel, .request-status, .recording-list, #activity-list, #busy-view {
   border: 1px solid var(--stroke); border-radius: var(--r); background: var(--glass);
   box-shadow: inset 0 1px 0 var(--hi), 0 0 0 .5px var(--edge), var(--shadow);
 }
@@ -55,6 +55,23 @@ main { padding-top: 40px; }
 .drop-sub { font-size: 16px; }
 .drop-note { font-size: 12px; color: var(--muted); }
 .context-row { margin-top: 18px; }
+.capture-card { position: relative; overflow: hidden; padding: 36px 24px 30px; text-align: center; }
+.capture-card::before { content: ''; position: absolute; inset: 0 0 auto; height: 5px; background: var(--stripes); }
+.capture-art { position: relative; width: 120px; height: 90px; margin: 0 auto 22px; color: var(--accent-ink); }
+.capture-art svg { width: 100%; height: 100%; fill: var(--glass2); stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.capture-art img { position: absolute; left: 34px; top: 13px; }
+.capture-card h2 { font-size: 24px; font-weight: 650; letter-spacing: -.025em; }
+.capture-card > p { color: var(--muted); margin-top: 10px; font-size: 15px; }
+.capture-card .capture-status { font-size: 13px; min-height: 20px; margin-top: 20px; }
+.capture-clock { display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 20px; font-size: 32px; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.capture-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--rec); flex: none; }
+.capture-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; margin-top: 24px; min-width: 190px; min-height: 46px; }
+.capture-button-symbol { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+[data-state="recording"] .capture-button-symbol { border-radius: 2px; }
+[data-state="recording"] .capture-clock .capture-dot { animation: recording-pulse 1.6s ease-in-out infinite; }
+.capture-card .capture-note { margin-top: 16px; font-size: 12px; color: var(--faint); }
+.capture-quick-stop { margin-left: auto; display: inline-flex; align-items: center; gap: 9px; white-space: nowrap; padding: 7px 13px; background: var(--glass3); border: 1px solid var(--line); border-radius: 999px; font-size: 13px; font-variant-numeric: tabular-nums; }
+@keyframes recording-pulse { 50% { opacity: .35; } }
 .context-row input, #recording-search, .edit-dialog input, .edit-dialog textarea, .key-input-row input {
   background: var(--glass2); color: var(--ink); border-color: var(--line); border-radius: 12px; font-size: 14px;
 }

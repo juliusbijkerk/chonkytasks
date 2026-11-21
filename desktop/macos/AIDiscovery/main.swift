@@ -206,12 +206,49 @@ final class DropView: NSView {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandlerWithReply {
     var window: NSWindow!
     var webView: WKWebView!
     var server: ServerProcess?
     private var pageReady = false
     private var pendingFiles: [URL] = []
+    private var recorderStorage: NSObject?
+
+    @available(macOS 15.0, *)
+    private func recorder() -> ScreenRecorder? {
+        if let recorder = recorderStorage as? ScreenRecorder { return recorder }
+        guard let root = server?.root else { return nil }
+        let recorder = ScreenRecorder(root: root)
+        recorder.onChange = { [weak self] state in
+            guard let data = try? JSONSerialization.data(withJSONObject: state),
+                  let json = String(data: data, encoding: .utf8) else { return }
+            self?.webView?.evaluateJavaScript("window.recordingUI?.nativeState(\(json))")
+        }
+        recorderStorage = recorder
+        return recorder
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage,
+                               replyHandler: @escaping (Any?, String?) -> Void) {
+        let origin = message.frameInfo.securityOrigin
+        guard message.frameInfo.isMainFrame, origin.protocol == "http", origin.host == "127.0.0.1",
+              origin.port == server?.port, let body = message.body as? [String: String] else {
+            replyHandler(nil, "Recording is available only from the local app."); return
+        }
+        guard #available(macOS 15.0, *), let recorder = recorder() else {
+            replyHandler(nil, "Direct recording in the Mac app requires macOS 15 or later."); return
+        }
+        do {
+            switch body["action"] {
+            case "start": try recorder.start(context: body["context"] ?? "")
+            case "stop": recorder.stop()
+            case "acknowledge": try recorder.acknowledge(name: body["name"] ?? "")
+            case "status": break
+            default: replyHandler(nil, "Unknown recording action."); return
+            }
+            replyHandler(recorder.snapshot, nil)
+        } catch { replyHandler(nil, error.localizedDescription) }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
@@ -249,6 +286,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         server?.stop()
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if #available(macOS 15.0, *), let recorder = recorderStorage as? ScreenRecorder, recorder.isCapturing {
+            window.makeKeyAndOrderFront(nil)
+            let alert = NSAlert()
+            alert.messageText = "Your recording is still in progress."
+            alert.informativeText = "Stop and save it before closing chonkytasks."
+            alert.addButton(withTitle: "Stop & analyze")
+            alert.addButton(withTitle: "Keep open")
+            if alert.runModal() == .alertFirstButtonReturn { recorder.stop() }
+            return .terminateCancel
+        }
+        return .terminateNow
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     /// Files dropped on the Dock icon or opened via "Open With".
@@ -269,6 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         window.delegate = self
 
         let configuration = WKWebViewConfiguration()
+        configuration.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "screenRecording")
         webView = WKWebView(frame: rect, configuration: configuration)
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = self

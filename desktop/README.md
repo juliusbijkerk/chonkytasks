@@ -22,7 +22,7 @@ After switching from the old ad-hoc build, macOS may request each required permi
 
 This is a local launcher: keep the project folder and its `.venv` available. The app remembers the project location; rebuild after moving the project, keep the app in the project's `dist/` folder, or set `CHONKYTASKS_HOME`. The older `AI_DISCOVERY_HOME` and `FLOWLENS_HOME` overrides remain supported. Startup details remain at `~/Library/Logs/AI Discovery/server.log`.
 
-The interface uses the Mistral orange/yellow/red palette, glass surfaces, and pixel-cat branding from [chonkytasks](https://github.com/juliusbijkerk/chonkytasks/tree/main/ui), with its MIT license preserved in `static/brand/LICENSE`. The existing sidebar, recording upload, reports, automations, and activity flows remain in place. The app opens in the light Mistral appearance, including when macOS uses dark mode or an older dark preference was saved; the toolbar has no appearance controls. The sidebar mascot hops on hover, and running email checks show a spinning mascot with randomly varied speed. Confirmed reply sends finish with a brief particle celebration that dismisses automatically, on click, or with Escape. Animations respect Reduce Motion. macOS bundle identifiers, Keychain service names, workflow identifiers, stored data, and log paths retain their previous values so the rename does not create new automation identities.
+The interface uses the Mistral orange/yellow/red palette, glass surfaces, and pixel-cat branding from [chonkytasks](https://github.com/juliusbijkerk/chonkytasks/tree/main/ui), with its MIT license preserved in `static/brand/LICENSE`. The existing sidebar, recordings library, reports, automations, and activity flows remain in place. The app opens in the light Mistral appearance, including when macOS uses dark mode or an older dark preference was saved; the toolbar has no appearance controls. The sidebar mascot hops on hover, and running email checks show a spinning mascot with randomly varied speed. Confirmed reply sends finish with a brief particle celebration that dismisses automatically, on click, or with Escape. Animations respect Reduce Motion. macOS bundle identifiers, Keychain service names, workflow identifiers, stored data, and log paths retain their previous values so the rename does not create new automation identities.
 
 ## Run
 
@@ -40,13 +40,15 @@ Open **http://127.0.0.1:8000**. The existing `.env` in this workspace is already
 
 ## Use
 
-1. Drop an MP4, MOV, WebM, MKV, or M4V recording into the upload area, or select a recent Desktop recording.
-2. Optionally explain the task, then select **Analyze**. Desktop sample buttons start analysis immediately.
+1. Open **New recording**, optionally describe the task, and select **Start recording**. Choose a screen or window using the system picker.
+2. Work as usual, then select **Stop & analyze**. A stop control remains in the toolbar while browsing other pages. The completed video is saved and analyzed automatically.
 3. Use the sidebar to switch between a new recording, the searchable recordings list, and recent analyses.
 4. Review Summary, Analysis steps, and Automations. Click a screenshot or numbered step to seek the video and see its description, application, timing, and evidence. Playback follows the current step. Returns to a previous view are shown separately, including in older reports.
 5. Export the report as Markdown. JSON is available from `/api/jobs/<job-id>/export/json`. Reports remain at their `/#job=…` link after restarting the server.
 6. Delete a finished recording from the sidebar, recordings list, or report toolbar. Confirming removes the stored copy and report; the original video is preserved. In-progress recordings cannot be deleted.
 7. Use the pencil button to rename a recording or add notes, including while analysis is running. Names and notes are saved locally, searchable, and included in exports. They do not change the source file or the context sent for analysis.
+
+Direct recording in the Mac app uses ScreenCaptureKit and requires macOS 15 or later. The system picker controls which screen or window is shared; microphone and system audio are off. Recording stops automatically before the 15-minute or 500 MB analysis limits. A finished native capture is retained locally if analysis cannot start, and can be retried without creating duplicate analyses. Existing recordings are preserved. In a supported desktop browser, screen recording uses `getDisplayMedia` and `MediaRecorder`; keep the page open until the video has been accepted for analysis. Importing an existing video remains available through the Mac app’s **Open recording…** menu or Dock drop.
 
 During analysis, the progress bar animates and shows elapsed time. Four stages show preparation, screenshot reading, writing results, and validation. Screenshot counts are separate from batch counts; the current batch has a thumbnail preview. The percentage advances with completed stages and batches, not predicted model completion time.
 
