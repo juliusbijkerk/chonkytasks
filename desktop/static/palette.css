@@ -1,0 +1,40 @@
+/* Mistral palette adapted from juliusbijkerk/chonkytasks ui/index.html (MIT).
+ * Original license: brand/LICENSE. All appearances use these warm colors. */
+:root {
+  --bg:#fff8ec;
+  --b1:#ffd800; --b2:#ff8205; --b3:#fa500f; --blob-o:.34;
+  --glass:rgba(255,253,248,.58); --glass2:rgba(255,253,248,.8); --glass3:rgba(255,255,255,.96);
+  --stroke:rgba(255,255,255,.9); --edge:rgba(60,30,0,.08); --hi:rgba(255,255,255,.95);
+  --ink:#1c140a; --dim:#6b5a45; --faint:#a3907a; --line:rgba(60,30,0,.08);
+  --a1:#fa500f; --a2:#ff8205; --atext:#d63f00;
+  --grad:linear-gradient(120deg,#ff8205,#fa500f 55%,#e10500);
+  --stripes:linear-gradient(90deg,#ffd800 0 20%,#ffaf00 20% 40%,#ff8205 40% 60%,#fa500f 60% 80%,#e10500 80%);
+  --ok:#1f8a4c; --ok-soft:rgba(31,138,76,.12);
+  --warn:#b26a00; --warn-soft:rgba(178,106,0,.12);
+  --bad:#d92d20; --bad-soft:rgba(217,45,32,.09);
+  --shadow:0 1px 1px rgba(60,30,0,.05),0 12px 32px -14px rgba(120,50,0,.28);
+  --log-bg:rgba(28,20,10,.9); --log-ink:#ffd38a;
+  --rec:#e10500; --r:16px;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --muted: var(--dim);
+  --accent: var(--a1);
+  --accent-ink: var(--atext);
+  --accent-soft: color-mix(in srgb, var(--a1) 11%, transparent);
+  --soft: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+:root[data-theme="dark"] {
+  --bg:#100b06;
+  --b1:#ff8205; --b2:#e10500; --b3:#ffaf00; --blob-o:.24;
+  --glass:rgba(255,236,210,.045); --glass2:rgba(255,236,210,.075); --glass3:rgba(255,236,210,.11);
+  --stroke:rgba(255,236,210,.1); --edge:rgba(0,0,0,.45); --hi:rgba(255,236,210,.08);
+  --ink:#fff4e3; --dim:#c4ae93; --faint:#7f6c57; --line:rgba(255,236,210,.08);
+  --a1:#ff6a1f; --a2:#ffaf00; --atext:#ffa24d;
+  --grad:linear-gradient(120deg,#ffc400,#ff8205 45%,#fa500f);
+  --ok:#4ade80; --ok-soft:rgba(74,222,128,.12);
+  --warn:#ffcf4d; --warn-soft:rgba(255,207,77,.12);
+  --bad:#ff6b5b; --bad-soft:rgba(255,107,91,.1);
+  --shadow:0 1px 1px rgba(0,0,0,.3),0 18px 40px -16px rgba(0,0,0,.65);
+  --log-bg:rgba(0,0,0,.45);
+}
