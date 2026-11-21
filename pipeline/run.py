@@ -46,21 +46,58 @@ def fill_template(text, values):
     return out
 
 
-def locate(page, L):
+def locate(page, L, values=None):
+    """Resolve a locator, filling {{name}} inside it first.
+
+    Locators carry templates as often as urls do: the compiler emits
+    {"by": "text", "value": "{{job_title}}"} because the title is the thing
+    that changes between passes. Without filling them here the runner hunted
+    the live page for the literal string "{{job_title}}" and timed out, which
+    reads exactly like the page having changed shape.
+    """
+    v = values or {}
     by = L.get("by")
+    name = fill_template(L.get("name"), v) if L.get("name") is not None else None
+    val = fill_template(L.get("value"), v) if L.get("value") is not None else None
+    # "exact": true when the name is a prefix of a longer one on the same page.
+    # Ashby's board carries both a "Location" and a "Location Type" filter, and
+    # Playwright's default substring match hits both, which fails as a strict
+    # mode violation rather than as a missing element. Ambiguity SHOULD fail
+    # loudly; this is the way to say which one you meant.
+    exact = bool(L.get("exact"))
     if by == "role":
-        return page.get_by_role(L["role"], name=L.get("name"))
+        return page.get_by_role(L["role"], name=name, exact=exact)
     if by == "label":
-        return page.get_by_label(L["value"])
+        return page.get_by_label(val, exact=exact)
     if by == "placeholder":
-        return page.get_by_placeholder(L["value"])
+        return page.get_by_placeholder(val, exact=exact)
     if by == "text":
-        return page.get_by_text(L["value"])
+        return page.get_by_text(val, exact=exact)
     if by == "testid":
-        return page.get_by_test_id(L["value"])
+        return page.get_by_test_id(val)
     if by == "css":
-        return page.locator(L["value"])
+        return page.locator(val)
     raise ValueError(f"unknown locator: {L}")
+
+
+def select_option(loc, want):
+    """Choose an option by label, tolerating a count suffix.
+
+    Job boards label their filters with the tally: Ashby's Location list reads
+    "London (88)", not "London". Playwright matches option labels exactly, so
+    an honest "London" from the recording found nothing and the runner spent
+    30 seconds retrying an element it had already located. Try the exact match
+    first, then the option whose text starts with what was asked for.
+    """
+    opts = loc.locator("option")
+    for i in range(opts.count()):
+        o = opts.nth(i)
+        text = " ".join((o.inner_text() or "").split())
+        if text.lower().startswith(want.lower()):
+            loc.select_option(o.get_attribute("value"))
+            return
+    # no <option> children, so it is a custom widget: let Playwright try
+    loc.select_option(want, timeout=2500)
 
 
 def describe(a):
@@ -158,22 +195,23 @@ def main():
                 elif op == "fill":
                     val = (params[a["param"]] if a.get("param")
                            else fill_template(a.get("value", ""), values))
-                    locate(page, a["locator"]).fill(val)
+                    locate(page, a["locator"], values).fill(val)
                 elif op == "click":
-                    locate(page, a["locator"]).click()
+                    locate(page, a["locator"], values).click()
                 elif op == "select":
-                    locate(page, a["locator"]).select_option(a["value"])
+                    select_option(locate(page, a["locator"], values),
+                                  fill_template(a["value"], values))
                 elif op == "press":
                     page.keyboard.press(a["key"])
                 elif op == "wait_for":
-                    locate(page, a["locator"]).wait_for(timeout=a.get("timeout_ms", 10000))
+                    locate(page, a["locator"], values).wait_for(timeout=a.get("timeout_ms", 10000))
                 elif op == "extract":
-                    got = locate(page, a["locator"]).inner_text().strip()
+                    got = locate(page, a["locator"], values).inner_text().strip()
                     extracted[a["as"]] = got
                     values[a["as"]] = got
                 elif op == "assert_text":
                     want = fill_template(a["text"], values)
-                    got = locate(page, a["locator"]).inner_text()
+                    got = locate(page, a["locator"], values).inner_text()
                     if want.lower() not in got.lower():
                         raise AssertionError(f"expected {want!r}, page said {got[:80]!r}")
                 else:
