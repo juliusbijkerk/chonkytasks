@@ -1,0 +1,8 @@
+.env
+token.json
+credentials.json
+__pycache__/
+*.pyc
+backend/demo_data/autopilot.db
+backend/demo_data/applications.xlsx*
+exported_skills/

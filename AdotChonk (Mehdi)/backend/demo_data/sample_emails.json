@@ -1,0 +1,82 @@
+[
+  {
+    "id": "msg_001",
+    "thread_id": "thr_001",
+    "from_addr": "talent@acme.example.com",
+    "from_name": "Acme Corp Talent Team",
+    "subject": "Update on your application - Software Engineer Intern at Acme Corp",
+    "date": "2025-11-19T09:12:00Z",
+    "snippet": "Thank you for your interest... unfortunately we will not be moving forward...",
+    "body": "Hi Alex,\n\nThank you for taking the time to apply for the Software Engineer Intern position at Acme Corp and for chatting with our team.\n\nAfter careful consideration, we have decided to move forward with other candidates whose experience more closely matches the needs of this role. Unfortunately, we will not be moving forward with your application at this time.\n\nWe really appreciate your interest in Acme Corp and encourage you to apply for future openings.\n\nBest regards,\nAcme Corp Talent Team"
+  },
+  {
+    "id": "msg_002",
+    "thread_id": "thr_002",
+    "from_addr": "recruiting@globex.example.com",
+    "from_name": "Globex Recruiting",
+    "subject": "We regret to inform you - Data Analyst at Globex",
+    "date": "2025-11-19T11:40:00Z",
+    "snippet": "We regret to inform you that we will not be proceeding...",
+    "body": "Dear Alex,\n\nWe regret to inform you that, after reviewing all applications for the Data Analyst role at Globex, we will not be proceeding with your candidacy.\n\nThis was a difficult decision as we received many strong applications.\n\nSincerely,\nGlobex Recruiting"
+  },
+  {
+    "id": "msg_003",
+    "thread_id": "thr_003",
+    "from_addr": "people@initech.example.com",
+    "from_name": "Initech People Team",
+    "subject": "Interview invitation - Product Manager at Initech",
+    "date": "2025-11-20T08:05:00Z",
+    "snippet": "Great news! We would love to invite you to interview...",
+    "body": "Hi Alex,\n\nGreat news! We would love to invite you to interview for the Product Manager position at Initech. Please pick a slot in the link below.\n\nBest,\nInitech People Team"
+  },
+  {
+    "id": "msg_004",
+    "thread_id": "thr_004",
+    "from_addr": "jobs@hooli.example.com",
+    "from_name": "Hooli Jobs",
+    "subject": "Your application at Hooli - not selected",
+    "date": "2025-11-20T14:22:00Z",
+    "snippet": "Thank you for applying... we have decided not to select...",
+    "body": "Hello,\n\nThank you for applying to the ML Intern role at Hooli. After careful review, we have decided not to select your application for the next stage.\n\nRegards,\nHooli Jobs"
+  },
+  {
+    "id": "msg_005",
+    "thread_id": "thr_005",
+    "from_addr": "no-reply@umbrella.example.com",
+    "from_name": "Umbrella Careers",
+    "subject": "Application received - Backend Developer at Umbrella",
+    "date": "2025-11-18T10:00:00Z",
+    "snippet": "We confirm receipt of your application...",
+    "body": "Hi Alex,\n\nWe confirm receipt of your application for the Backend Developer position at Umbrella. Our team will review it and get back to you.\n\nUmbrella Careers"
+  },
+  {
+    "id": "msg_006",
+    "thread_id": "thr_006",
+    "from_addr": "hr@stark.example.com",
+    "from_name": "Stark Industries HR",
+    "subject": "Update - ML Intern application at Stark Industries",
+    "date": "2025-11-21T09:31:00Z",
+    "snippet": "Unfortunately, we will not be moving forward with your application...",
+    "body": "Dear Alex,\n\nThank you for your application for the ML Intern role at Stark Industries. Unfortunately, we will not be moving forward with your application. We were impressed by your background but the competition was very strong.\n\nKind regards,\nStark Industries HR"
+  },
+  {
+    "id": "msg_007",
+    "thread_id": "thr_007",
+    "from_addr": "newsletter@piedpiper.example.com",
+    "from_name": "Pied Piper Digest",
+    "subject": "This week in tech: 5 things you missed",
+    "date": "2025-11-21T07:00:00Z",
+    "snippet": "Your weekly digest of tech news...",
+    "body": "Hi Alex,\n\nHere is your weekly digest of tech news: compression algorithms, new chips, and more.\n\nPied Piper Digest"
+  },
+  {
+    "id": "msg_008",
+    "thread_id": "thr_008",
+    "from_addr": "careers@nexadyne.example.com",
+    "from_name": "Nexadyne Careers",
+    "subject": "Your application - we will not be proceeding",
+    "date": "2025-11-21T12:10:00Z",
+    "snippet": "Thank you for your interest in Nexadyne... we will not be proceeding...",
+    "body": "Hello,\n\nThank you for your interest in the Data Analyst position at Nexadyne. After review, we will not be proceeding with your application.\n\nBest wishes,\nNexadyne Careers"
+  }
+]
