@@ -1,0 +1,1304 @@
+[
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258520350,
+  "type": "navigation",
+  "app": "Gmail",
+  "detail": {
+   "url": "https://mail.google.com/mail/u/0/#inbox",
+   "title": "Inbox - Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258538350,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search bar"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258545100,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search mail",
+   "type": "text"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258558600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search: unfortunately"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258585600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Email from Acme Corp Talent Team: Update on your application - Software Engineer Intern at Acme Corp"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258612600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258623850,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply body",
+   "type": "textarea"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258704850,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Send"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258713850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Excel Online"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258720600,
+  "type": "navigation",
+  "app": "Excel Online",
+  "detail": {
+   "url": "https://excel.officeapps.live.com/applications.xlsx",
+   "title": "applications.xlsx - Excel"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258743100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14 (Status)"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258747600,
+  "type": "input",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14",
+   "type": "cell"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258761100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Save"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258767850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258772350,
+  "type": "idle",
+  "app": "Gmail",
+  "detail": {
+   "seconds": 12
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258784350,
+  "type": "navigation",
+  "app": "Gmail",
+  "detail": {
+   "url": "https://mail.google.com/mail/u/0/#inbox",
+   "title": "Inbox - Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258802350,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search bar"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258809100,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search mail",
+   "type": "text"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258822600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search: not moving forward"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258849600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Email from Globex Recruiting: We regret to inform you - Data Analyst at Globex"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258876600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258887850,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply body",
+   "type": "textarea"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258968850,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Send"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258977850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Excel Online"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795258984600,
+  "type": "navigation",
+  "app": "Excel Online",
+  "detail": {
+   "url": "https://excel.officeapps.live.com/applications.xlsx",
+   "title": "applications.xlsx - Excel"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259007100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14 (Status)"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259011600,
+  "type": "input",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14",
+   "type": "cell"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259025100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Save"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259031850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259036350,
+  "type": "idle",
+  "app": "Gmail",
+  "detail": {
+   "seconds": 12
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259048350,
+  "type": "navigation",
+  "app": "Gmail",
+  "detail": {
+   "url": "https://mail.google.com/mail/u/0/#inbox",
+   "title": "Inbox - Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259066350,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search bar"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259073100,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search mail",
+   "type": "text"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259086600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search: other candidates"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259113600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Email from Hooli Jobs: Your application at Hooli - not selected"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259140600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259151850,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply body",
+   "type": "textarea"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259232850,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Send"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259241850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Excel Online"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259248600,
+  "type": "navigation",
+  "app": "Excel Online",
+  "detail": {
+   "url": "https://excel.officeapps.live.com/applications.xlsx",
+   "title": "applications.xlsx - Excel"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259271100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14 (Status)"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259275600,
+  "type": "input",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14",
+   "type": "cell"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259289100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Save"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259295850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259300350,
+  "type": "idle",
+  "app": "Gmail",
+  "detail": {
+   "seconds": 12
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259312350,
+  "type": "navigation",
+  "app": "Gmail",
+  "detail": {
+   "url": "https://mail.google.com/mail/u/0/#inbox",
+   "title": "Inbox - Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259330350,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search bar"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259337100,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search mail",
+   "type": "text"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259350600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search: unfortunately"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259377600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Email from Stark Industries HR: Update - ML Intern application at Stark Industries"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259404600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259415850,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply body",
+   "type": "textarea"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259496850,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Send"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259505850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Excel Online"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259512600,
+  "type": "navigation",
+  "app": "Excel Online",
+  "detail": {
+   "url": "https://excel.officeapps.live.com/applications.xlsx",
+   "title": "applications.xlsx - Excel"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259535100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14 (Status)"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259539600,
+  "type": "input",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14",
+   "type": "cell"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259553100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Save"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259559850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259564350,
+  "type": "idle",
+  "app": "Gmail",
+  "detail": {
+   "seconds": 12
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259576350,
+  "type": "navigation",
+  "app": "Gmail",
+  "detail": {
+   "url": "https://mail.google.com/mail/u/0/#inbox",
+   "title": "Inbox - Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259594350,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search bar"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259601100,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search mail",
+   "type": "text"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259614600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search: not selected"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259641600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Email from Umbrella Careers: Update on your application - Backend Developer at Umbrella"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259668600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259679850,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply body",
+   "type": "textarea"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259760850,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Send"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259769850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Excel Online"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259776600,
+  "type": "navigation",
+  "app": "Excel Online",
+  "detail": {
+   "url": "https://excel.officeapps.live.com/applications.xlsx",
+   "title": "applications.xlsx - Excel"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259799100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14 (Status)"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259803600,
+  "type": "input",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14",
+   "type": "cell"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259817100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Save"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259823850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259828350,
+  "type": "idle",
+  "app": "Gmail",
+  "detail": {
+   "seconds": 12
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259840350,
+  "type": "navigation",
+  "app": "Gmail",
+  "detail": {
+   "url": "https://mail.google.com/mail/u/0/#inbox",
+   "title": "Inbox - Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259858350,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search bar"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259865100,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search mail",
+   "type": "text"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259878600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Search: will not be proceeding"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259905600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Email from Nexadyne Careers: Your application - we will not be proceeding"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259932600,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795259943850,
+  "type": "input",
+  "app": "Gmail",
+  "detail": {
+   "label": "Reply body",
+   "type": "textarea"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260024850,
+  "type": "click",
+  "app": "Gmail",
+  "detail": {
+   "label": "Send"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260033850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Excel Online"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260040600,
+  "type": "navigation",
+  "app": "Excel Online",
+  "detail": {
+   "url": "https://excel.officeapps.live.com/applications.xlsx",
+   "title": "applications.xlsx - Excel"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260063100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14 (Status)"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260067600,
+  "type": "input",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Cell C14",
+   "type": "cell"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260081100,
+  "type": "click",
+  "app": "Excel Online",
+  "detail": {
+   "label": "Save"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260087850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Gmail"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260092350,
+  "type": "idle",
+  "app": "Gmail",
+  "detail": {
+   "seconds": 12
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260104350,
+  "type": "navigation",
+  "app": "Sheets",
+  "detail": {
+   "url": "https://docs.google.com/spreadsheets/d/candidates",
+   "title": "candidates - Google Sheets"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260108350,
+  "type": "click",
+  "app": "Sheets",
+  "detail": {
+   "label": "Row: Candidate 41"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260109350,
+  "type": "copy_paste",
+  "app": "Sheets",
+  "detail": {
+   "action": "copy"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260110850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "CRM portal"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260111850,
+  "type": "navigation",
+  "app": "Other",
+  "detail": {
+   "url": "https://crm.example.com/new-lead",
+   "title": "New lead - CRM"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260116850,
+  "type": "input",
+  "app": "Other",
+  "detail": {
+   "label": "Full name",
+   "type": "text"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260120850,
+  "type": "input",
+  "app": "Other",
+  "detail": {
+   "label": "Email",
+   "type": "email"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260124850,
+  "type": "copy_paste",
+  "app": "Other",
+  "detail": {
+   "action": "paste"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260125850,
+  "type": "input",
+  "app": "Other",
+  "detail": {
+   "label": "Notes",
+   "type": "textarea"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260131850,
+  "type": "click",
+  "app": "Other",
+  "detail": {
+   "label": "Submit lead"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260134350,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Sheets"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260136350,
+  "type": "navigation",
+  "app": "Sheets",
+  "detail": {
+   "url": "https://docs.google.com/spreadsheets/d/candidates",
+   "title": "candidates - Google Sheets"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260140350,
+  "type": "click",
+  "app": "Sheets",
+  "detail": {
+   "label": "Row: Candidate 42"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260141350,
+  "type": "copy_paste",
+  "app": "Sheets",
+  "detail": {
+   "action": "copy"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260142850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "CRM portal"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260143850,
+  "type": "navigation",
+  "app": "Other",
+  "detail": {
+   "url": "https://crm.example.com/new-lead",
+   "title": "New lead - CRM"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260148850,
+  "type": "input",
+  "app": "Other",
+  "detail": {
+   "label": "Full name",
+   "type": "text"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260152850,
+  "type": "input",
+  "app": "Other",
+  "detail": {
+   "label": "Email",
+   "type": "email"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260156850,
+  "type": "copy_paste",
+  "app": "Other",
+  "detail": {
+   "action": "paste"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260157850,
+  "type": "input",
+  "app": "Other",
+  "detail": {
+   "label": "Notes",
+   "type": "textarea"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260163850,
+  "type": "click",
+  "app": "Other",
+  "detail": {
+   "label": "Submit lead"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260166350,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Sheets"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260168350,
+  "type": "navigation",
+  "app": "Sheets",
+  "detail": {
+   "url": "https://docs.google.com/spreadsheets/d/candidates",
+   "title": "candidates - Google Sheets"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260172350,
+  "type": "click",
+  "app": "Sheets",
+  "detail": {
+   "label": "Row: Candidate 43"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260173350,
+  "type": "copy_paste",
+  "app": "Sheets",
+  "detail": {
+   "action": "copy"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260174850,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "CRM portal"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260175850,
+  "type": "navigation",
+  "app": "Other",
+  "detail": {
+   "url": "https://crm.example.com/new-lead",
+   "title": "New lead - CRM"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260180850,
+  "type": "input",
+  "app": "Other",
+  "detail": {
+   "label": "Full name",
+   "type": "text"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260184850,
+  "type": "input",
+  "app": "Other",
+  "detail": {
+   "label": "Email",
+   "type": "email"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260188850,
+  "type": "copy_paste",
+  "app": "Other",
+  "detail": {
+   "action": "paste"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260189850,
+  "type": "input",
+  "app": "Other",
+  "detail": {
+   "label": "Notes",
+   "type": "textarea"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260195850,
+  "type": "click",
+  "app": "Other",
+  "detail": {
+   "label": "Submit lead"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260198350,
+  "type": "tab_switch",
+  "app": "Browser",
+  "detail": {
+   "to": "Sheets"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260200350,
+  "type": "navigation",
+  "app": "Drive",
+  "detail": {
+   "url": "https://drive.google.com/drive/my-drive",
+   "title": "My Drive"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260204350,
+  "type": "click",
+  "app": "Drive",
+  "detail": {
+   "label": "weekly metrics.xlsx"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260207350,
+  "type": "copy_paste",
+  "app": "Drive",
+  "detail": {
+   "action": "copy"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260208850,
+  "type": "navigation",
+  "app": "Docs",
+  "detail": {
+   "url": "https://docs.google.com/document/d/weekly-report",
+   "title": "Weekly report - Docs"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260213850,
+  "type": "copy_paste",
+  "app": "Docs",
+  "detail": {
+   "action": "paste"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260215850,
+  "type": "input",
+  "app": "Docs",
+  "detail": {
+   "label": "Report body",
+   "type": "textarea"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260230850,
+  "type": "click",
+  "app": "Docs",
+  "detail": {
+   "label": "Share"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260232850,
+  "type": "idle",
+  "app": "Docs",
+  "detail": {
+   "seconds": 10
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260242850,
+  "type": "navigation",
+  "app": "Drive",
+  "detail": {
+   "url": "https://drive.google.com/drive/my-drive",
+   "title": "My Drive"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260246850,
+  "type": "click",
+  "app": "Drive",
+  "detail": {
+   "label": "weekly metrics.xlsx"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260249850,
+  "type": "copy_paste",
+  "app": "Drive",
+  "detail": {
+   "action": "copy"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260251350,
+  "type": "navigation",
+  "app": "Docs",
+  "detail": {
+   "url": "https://docs.google.com/document/d/weekly-report",
+   "title": "Weekly report - Docs"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260256350,
+  "type": "copy_paste",
+  "app": "Docs",
+  "detail": {
+   "action": "paste"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260258350,
+  "type": "input",
+  "app": "Docs",
+  "detail": {
+   "label": "Report body",
+   "type": "textarea"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260273350,
+  "type": "click",
+  "app": "Docs",
+  "detail": {
+   "label": "Share"
+  }
+ },
+ {
+  "session_id": "sample-session-001",
+  "timestamp_ms": 1795260275350,
+  "type": "idle",
+  "app": "Docs",
+  "detail": {
+   "seconds": 10
+  }
+ }
+]

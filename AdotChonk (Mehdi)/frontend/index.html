@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoPilot — My Repetitive Tasks</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ======= Top bar ======= -->
+<header class="topbar">
+  <div class="brand"><span class="logo">✈️</span> AutoPilot <span class="tagline">AI for the work you keep repeating</span></div>
+  <div class="topbar-right">
+    <span id="recPill" class="pill idle">● Idle</span>
+    <button id="btnStart" class="btn">▶ Start observation</button>
+    <button id="btnStop" class="btn" disabled>■ Stop &amp; analyse</button>
+    <button id="btnSample" class="btn ghost">✨ Load sample session</button>
+    <button id="btnMic" class="btn icon" title="Voice command (Voxtral)">🎙️</button>
+  </div>
+</header>
+
+<div id="voiceBar" class="voice-bar hidden">
+  🎙️ <span id="voiceText">Listening…</span>
+</div>
+
+<main>
+  <!-- ======= Summary strip ======= -->
+  <section class="stats" id="stats">
+    <div class="stat"><div class="stat-num" id="stTasks">–</div><div class="stat-label">repetitive tasks found</div></div>
+    <div class="stat"><div class="stat-num" id="stLost">–</div><div class="stat-label">hours lost / week</div></div>
+    <div class="stat"><div class="stat-num" id="stSaved">–</div><div class="stat-label">hours savable / week</div></div>
+    <div class="stat"><div class="stat-num" id="stMoney">–</div><div class="stat-label">est. saving / month</div></div>
+  </section>
+
+  <!-- ======= Detected tasks ======= -->
+  <section>
+    <h2>🔁 Your repetitive tasks <span class="hint">ranked by weekly time cost</span></h2>
+    <div id="taskList" class="task-list">
+      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    </div>
+    <div id="emptyState" class="empty hidden">
+      <p>No tasks yet. Press <b>▶ Start observation</b> (with the Chrome extension recording) or
+      <b>✨ Load sample session</b> to see AutoPilot detect your repetitive work.</p>
+    </div>
+  </section>
+
+  <!-- ======= Laptop agent ======= -->
+  <section>
+    <h2>💻 Laptop agent <span class="hint">Mistral uses your apps with the mouse &amp; keyboard · Esc stops it</span></h2>
+    <div class="laptop-card">
+      <textarea id="laptopGoal" rows="2" placeholder="Tell AutoPilot what to do on your computer, e.g. “Open applications.xlsx in Excel and mark Globex as Declined”"></textarea>
+      <div class="laptop-row">
+        <div class="laptop-examples">
+          <button class="chip-btn" data-goal="Open the Excel file {TRACKER} and change the Status of the Globex row to Declined, then save with Ctrl+S.">📊 Update my tracker in Excel</button>
+          <button class="chip-btn" data-goal="Open Notepad and write a short list of 3 tips for following up after a job rejection. Do not save the file.">📝 Write notes in Notepad</button>
+          <button class="chip-btn" data-goal="Open File Explorer and show me the Downloads folder sorted by date modified, newest first.">📁 Tidy view of Downloads</button>
+        </div>
+        <button id="btnLaptop" class="btn primary">▶ Run on my laptop</button>
+      </div>
+      <p class="muted laptop-note">While it runs, a glowing border and a control panel appear on screen. Don't use the mouse
+        until it finishes. It asks you here before anything irreversible (sending, deleting, paying…) and never types passwords.</p>
+    </div>
+  </section>
+
+  <!-- ======= Agent run panel ======= -->
+  <section id="runPanel" class="run-panel hidden">
+    <h2>🤖 Agent run <span id="runMode" class="hint"></span></h2>
+    <div class="run-grid">
+      <div class="run-feed-wrap"><div id="runFeed" class="run-feed"></div></div>
+      <div class="run-side">
+        <h3>Drafts to review</h3>
+        <div id="draftList" class="draft-list"><p class="muted">No drafts yet.</p></div>
+        <div id="runSummary" class="run-summary"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======= More ideas ======= -->
+  <section>
+    <h2>💡 Other things AI agents could do for you</h2>
+    <div id="ideaList" class="idea-list"></div>
+  </section>
+
+  <!-- ======= Impact ======= -->
+  <section>
+    <h2>📊 Impact</h2>
+    <div class="chart-wrap"><canvas id="impactChart"></canvas></div>
+  </section>
+
+  <footer>
+    AutoPilot hackathon MVP · privacy-first: the observer never records typed text or email bodies ·
+    drafts are never sent without your approval · tracker backed up before every write ·
+    <span id="keyNote"></span>
+  </footer>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

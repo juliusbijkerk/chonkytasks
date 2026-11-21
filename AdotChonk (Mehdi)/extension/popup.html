@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: "Segoe UI", system-ui, sans-serif; width: 260px; margin: 0; padding: 14px; background: #fff; color: #17203a; }
+  h1 { font-size: 15px; margin: 0 0 4px; display: flex; align-items: center; gap: 6px; }
+  .sub { font-size: 11.5px; color: #6b7390; margin-bottom: 12px; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; margin-bottom: 10px; }
+  .pill.idle { background: #eef0f6; color: #6b7390; }
+  .pill.rec { background: #fee2e2; color: #dc2626; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity: .55; } }
+  button { width: 100%; padding: 9px; border-radius: 9px; border: 1px solid #e5e7f0; background: #4f46e5; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; }
+  button.secondary { background: #fff; color: #17203a; margin-top: 8px; }
+  select { width: 100%; padding: 7px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #e5e7f0; font-size: 12.5px; }
+  .status { font-size: 11.5px; color: #6b7390; margin-top: 8px; line-height: 1.5; white-space: pre-wrap; }
+  .status.err { color: #dc2626; }
+  .privacy { font-size: 10.5px; color: #6b7390; margin-top: 10px; line-height: 1.5; }
+  a { font-size: 11.5px; color: #4f46e5; display: block; margin-top: 10px; text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+  <h1>✈️ AutoPilot Observer</h1>
+  <div class="sub">Detects the work you keep repeating</div>
+  <span id="pill" class="pill idle">● Idle</span>
+  <select id="duration">
+    <option value="live">🔴 Live - until I stop (detects tasks as I work)</option>
+    <option value="5">Observe for 5 minutes</option>
+    <option value="15">Observe for 15 minutes</option>
+    <option value="30" selected>Observe for 30 minutes</option>
+  </select>
+  <button id="toggle">▶ Start observation</button>
+  <div id="status" class="status"></div>
+  <a href="http://localhost:8000/" target="_blank">Open dashboard →</a>
+  <div class="privacy">🔒 Privacy-first: never records typed text, passwords or email bodies. Data stays on localhost.</div>
+  <script src="popup.js"></script>
+</body>
+</html>
