@@ -96,7 +96,7 @@ def narration_window(lines, start, end, pad=1.5):
     return "\n".join(got)
 
 
-def call(client, key, frames, narration, seg=None):
+def call(client, key, frames, narration, seg=None, before=None):
     head = ("What the person said while these exact frames were on screen:\n"
             + (narration or "(they said nothing here)")
             + "\n\nUse a line as a step's narration ONLY if it plainly explains "
@@ -104,10 +104,25 @@ def call(client, key, frames, narration, seg=None):
               "about something else all get narration: null. A wrong narration "
               "is worse than none, because it reads as the person's reasoning.")
     if seg:
-        head = (f"This is one segment of the recording: {seg['id']}, "
-                f"{seg['start']}s to {seg['end']}s. The person stayed on one "
-                f"screen or site for this stretch.\n\n") + head
+        head = (f"This is one part of the recording: {seg['id']}, "
+                f"{seg['start']}s to {seg['end']}s. A part starts where the screen "
+                f"changed.\n\n") + head
+    if before:
+        # Parts are cut exactly where the screen changes, so a part on its own
+        # is one unchanged screen and the action that caused the change sits
+        # on the cut. Without the frame before it the model (rightly) saw no
+        # action at all: a 6-minute recording read as 0 steps in 8 of 11 parts.
+        head = ("The FIRST image is the screen just BEFORE these frames, for "
+                "context only. Report what the person did to get from it to the "
+                "next frame (opened a page, clicked a link, switched app), using "
+                "the next frame's timestamp, then any change between the later "
+                "frames. Never report anything that happened before the first "
+                "image.\n\n") + head
     content = [{"type": "text", "text": head}]
+    if before:
+        content.append({"type": "text", "text": f"--- BEFORE (context), t={before['t']}s ---"})
+        content.append({"type": "image_url",
+                        "image_url": f"data:image/jpeg;base64,{b64(before['file'])}"})
     for f in frames:
         content.append({"type": "text", "text": f"--- frame at t={f['t']}s ---"})
         content.append({"type": "image_url",
@@ -148,6 +163,7 @@ def main():
     # Build the work list: one unit per segment when we have segments, else
     # fixed batches. A segment longer than --batch is split, but never merged
     # with its neighbour.
+    order = [f["file"] for f in sorted(frames, key=lambda f: f.get("t", 0))]
     units = []
     if segs:
         for sg in segs:
@@ -165,7 +181,9 @@ def main():
         lo = min(f["t"] for f in chunk)
         hi = max(f["t"] for f in chunk)
         window = narration_window(narration_lines, lo, hi)
-        return call(client, key, chunk, window, sg), time.time() - t0
+        i0 = order.index(chunk[0]["file"]) if chunk[0]["file"] in order else 0
+        before = by_file[order[i0 - 1]] if i0 > 0 else None
+        return call(client, key, chunk, window, sg, before), time.time() - t0
 
     steps = []
     workers = max(1, int(os.environ.get("MISTRAL_CONCURRENCY", "4")))

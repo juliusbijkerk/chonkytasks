@@ -727,8 +727,17 @@ class H(SimpleHTTPRequestHandler):
                 return self._json({"error": f"unknown stage {name}"}, 400)
             if busy():
                 return self._json({"error": "something is still running"}, 409)
-            ok, err = start_pipeline([name])
-            return self._json({"ok": ok, "error": err}, 200 if ok else 409)
+            # Redo this stage and everything that depends on it, so the result
+            # on screen is consistent (new steps -> new write-up -> new loops).
+            plan = {name}
+            grew = True
+            while grew:
+                more = {n for n, deps in DEPS.items() if plan & set(deps)} - plan
+                grew = bool(more - {"transcribe"})
+                plan |= more - {"transcribe"}
+            ok, err = start_pipeline([n for n in PIPELINE if n in plan])
+            return self._json({"ok": ok, "error": err, "stages": [n for n in PIPELINE if n in plan]},
+                              200 if ok else 409)
 
         if u.path == "/api/pipeline":
             # Run the given stages, or everything not done yet, in dependency order.
