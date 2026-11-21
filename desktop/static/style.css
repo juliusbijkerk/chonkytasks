@@ -50,7 +50,11 @@ h1, h2, h3, p { margin: 0; }
 .library-row .recording-row { border-bottom: 0; min-width: 0; }
 .library-row .delete-button { margin-left: 8px; }
 .report-actions { display: flex; align-items: center; gap: 10px; flex: none; }
-.privacy-select { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.privacy-select {
+  position: sticky; top: 64px; z-index: 10;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-top: 10px; padding: 8px 0; background: var(--bg);
+}
 .privacy-display { display: grid; gap: 6px; justify-items: center; margin: 16px 0; }
 .privacy-display img { display: block; max-width: 100%; max-height: 410px; border: 1px solid var(--line); border-radius: 8px; }
 .privacy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(114px, 1fr)); gap: 9px; max-height: 250px; overflow: auto; padding: 3px; }
@@ -59,7 +63,6 @@ h1, h2, h3, p { margin: 0; }
 .privacy-shot label { display: flex; gap: 4px; align-items: center; font-size: 12px; }
 .privacy-context { display: block; margin-top: 14px; margin-bottom: 5px; font-size: 13px; }
 #evidence-context { width: 100%; resize: vertical; }
-#evidence-count { margin-top: 8px; }
 #privacy-view .dialog-actions { flex-wrap: wrap; }
 .source-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
 .local-findings { margin-top: 18px; }

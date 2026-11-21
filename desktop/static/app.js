@@ -445,11 +445,15 @@ function renderPrivacy(job) {
     <p class="coverage-note">${job.local_evidence_status === 'unavailable' ? 'Local workflow checks were unavailable.' : `${examples} source/result ${examples === 1 ? 'example matched' : 'examples matched'} on this Mac.`}
     <button class="secondary" id="evidence-local">${job.local_only ? 'Back to local findings' : 'View local findings'}</button></p>
     ${job.redaction_ready ? `<p>Choose screenshots to send directly to Mistral. ${olderMasks ? 'Refresh older masks to keep more of the workflow visible.' : 'Black bars cover detected sensitive values.'} Check each image before including it.</p>
-    <div class="privacy-select"><button class="secondary" id="evidence-select-all" type="button">Select all screenshots</button><button class="secondary" id="evidence-clear-all" type="button" disabled>Clear selection</button>${olderMasks ? '<button class="secondary" id="evidence-refresh" type="button">Refresh masks</button>' : ''}</div>
+    <div class="privacy-select">
+      <button class="secondary" id="evidence-select-all" type="button" aria-controls="evidence-frames">Include all</button>
+      <button class="secondary" id="evidence-clear-all" type="button" aria-controls="evidence-frames" disabled>Clear selection</button>
+      ${olderMasks ? '<button class="secondary" id="evidence-refresh" type="button">Refresh masks</button>' : ''}
+      <span id="evidence-count" class="meta" role="status"></span>
+    </div>
     <div class="privacy-display"><img id="evidence-image" alt="Exact redacted screenshot"><span id="evidence-image-time" class="meta"></span></div>
     <div class="privacy-grid" id="evidence-frames" aria-label="Redacted screenshots">${job.frames.map(frame => `<div class="privacy-shot"><button class="frame" data-preview="${esc(frame.id)}" aria-label="Preview ${stamp(frame.timestamp)}"><img src="${esc(redactedURL(job.id, frame.id))}" alt="" loading="lazy"><span>${stamp(frame.timestamp)}</span></button><label><input type="checkbox" value="${esc(frame.id)}"> Include ${stamp(frame.timestamp)}</label></div>`).join('')}</div>
     <label class="privacy-context" for="evidence-context">Context to share (optional)</label><textarea id="evidence-context" rows="3" maxlength="2000" placeholder="Leave out names, account details and other private values"></textarea>
-    <p id="evidence-count" class="meta" role="status"></p>
     <p class="hint">Mistral analyzes the selected images and context, then uses its observations to suggest workflows. Your original recording stays on this Mac.</p>
     <div class="dialog-actions"><button class="secondary" id="evidence-check" disabled>Review selection</button><button class="link" id="evidence-download" hidden>Download exact evidence</button><button class="primary" id="evidence-send" hidden>Approve and analyze</button></div>` : `<p role="status">${esc(job.redaction_message || 'Redacted screenshots are unavailable.')}</p>${job.local_only ? '' : '<button class="secondary" id="evidence-retry">Retry privacy review</button>'}`}`;
   let reviewed = null, inspecting = job.frames[0]?.id, working = false;
