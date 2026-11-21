@@ -1174,7 +1174,7 @@ $('#oppl').onclick=e=>{ const a=e.target.closest('[data-agent]'); if(a) return o
 
 /* ---------------- agent: built from the recognised process ---------------- */
 const AG={id:null,cursor:0,poll:null,tick:null,t0:0,rows:[]};
-const AGENT_DEFAULT='Supplier check before we pay them: look up Deliveroo, Octopus Energy and Pret A Manger on Companies House. One row each: company, company number, status, incorporated, registered address, link, and OK to pay: only if Active and incorporated more than 2 years ago.';
+const AGENT_DEFAULT='Supplier check before we pay them: look up Deliveroo, Pret A Manger and Thomas Cook Group on Companies House. One row each: company, company number, status, incorporated, registered address, link, and OK to pay: only if Active and incorporated more than 2 years ago.';
 function openAgent(id){
   const o=opps().find(x=>x.id===id); if(!o) return;
   sel=o; renderOpps(); AG.id=id;
