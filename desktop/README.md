@@ -16,6 +16,8 @@ open "dist/chonkytasks.app"
 
 The build uses the project's `.venv`, signs the app in a temporary folder outside synced Documents, and installs it to `~/Applications/chonkytasks.app` with a shortcut in `dist/`. The installed signature is verified before finishing. Keeping the bundle outside synced Documents prevents sync metadata from invalidating it later. Finder launches include the standard Homebrew tool locations, so FFmpeg works without a terminal shell profile.
 
+For a separate local build, set `CHONKYTASKS_RELEASE_DIR` to the destination and `CHONKYTASKS_FFMPEG_DIR` to a directory containing `ffmpeg` and `ffprobe`. This produces a Finder-launchable `ChonkyTasks.app` with bundled video tools and native helpers. It uses the prepared Python environments in this checkout and keeps its Keychain entry, worker label, and logs separate from the standard build. The separate build supports local ad-hoc signing with `CHONKYTASKS_SIGNING_IDENTITY=-`. macOS may ask for app access again after a rebuild.
+
 Builds reuse the **chonkytasks Local Development** signing identity in the login Keychain. Its public fingerprint is pinned in `~/Library/Application Support/chonkytasks/signing/identity.sha1`; the private key stays in Keychain and is available to `codesign`. Do not delete that identity between builds. Set `CHONKYTASKS_SIGNING_IDENTITY` to use your own persistent signing certificate. The build refuses ad-hoc signing because its identity changes with each native build, causing macOS to forget privacy grants ([Apple's explanation](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements)). This local certificate does not change system trust settings or provide notarization for distribution.
 
 After switching from the old ad-hoc build, macOS may request each required permission once more. Allow it for the installed chonkytasks app; subsequent builds use the same identity. Documents, Desktop, Mail, Calendar, and Keychain permissions are separate macOS controls. Close old AI Discovery instances so two differently signed builds do not compete for the same permission record.
@@ -36,7 +38,7 @@ cp -n .env.example .env  # preserve an existing .env
 bash scripts/start.sh
 ```
 
-Open **http://127.0.0.1:8000**. The existing `.env` in this workspace is already configured. Never overwrite it or commit it. To use another local port: `PORT=8001 bash scripts/start.sh`.
+Open **http://127.0.0.1:8000**. Local findings work before any model key is configured. Keep `.env` private and preserve any existing settings. To use another local port: `PORT=8001 bash scripts/start.sh`.
 
 ## Use
 
